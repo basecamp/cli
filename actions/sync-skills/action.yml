@@ -1,0 +1,133 @@
+name: Sync Skills
+description: Sync embedded SKILL.md files to basecamp/skills distribution repo
+
+inputs:
+  skills-token:
+    description: GitHub token with push access to basecamp/skills
+    required: true
+  release-tag:
+    description: The release tag (e.g., v1.2.3)
+    required: true
+  source-sha:
+    description: The source commit SHA
+    required: true
+  cli-name:
+    description: The CLI name (used as directory prefix in skills repo)
+    required: true
+  dry-run:
+    description: '"local" to skip push, "remote" to skip commit+push, empty for real run'
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Sync skills to distribution repo
+      shell: bash
+      env:
+        SKILLS_TOKEN: ${{ inputs.skills-token }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        SOURCE_SHA: ${{ inputs.source-sha }}
+        CLI_NAME: ${{ inputs.cli-name }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        set -euo pipefail
+        SKILLS_REPO="basecamp/skills"
+        SKILLS_DIR="skills"
+        MANAGED_MANIFEST=".managed-skills"
+
+        # Clone the skills repo
+        WORK_DIR=$(mktemp -d)
+        trap 'rm -rf "$WORK_DIR"' EXIT
+
+        echo "::group::Clone skills repo"
+        if ! git clone "https://x-access-token:${SKILLS_TOKEN}@github.com/${SKILLS_REPO}.git" "$WORK_DIR/skills-repo" 2>&1 | grep -v 'x-access-token'; then
+          echo "::error::Failed to clone ${SKILLS_REPO}"
+          exit 1
+        fi
+        echo "::endgroup::"
+
+        TARGET_DIR="${WORK_DIR}/skills-repo"
+
+        # Collect skill directories
+        SKILL_DIRS=()
+        for skill_dir in ${SKILLS_DIR}/*/; do
+          if [[ -f "${skill_dir}/SKILL.md" ]]; then
+            SKILL_DIRS+=("$skill_dir")
+          fi
+        done
+
+        if [[ ${#SKILL_DIRS[@]} -eq 0 ]]; then
+          echo "No skills found in ${SKILLS_DIR}/"
+          exit 0
+        fi
+
+        echo "Found ${#SKILL_DIRS[@]} skill(s) to sync"
+
+        # Copy skills
+        MANAGED_SKILLS=()
+        for skill_dir in "${SKILL_DIRS[@]}"; do
+          skill_name=$(basename "$skill_dir")
+          dest="${TARGET_DIR}/${CLI_NAME}/${skill_name}"
+          echo "  Syncing ${skill_name}..."
+          mkdir -p "$dest"
+          # Preserve subdirectory structure; exclude Go sources and dotfiles
+          (cd "$skill_dir" && find . -type f ! -name '*.go' ! -name '.*' | while read -r f; do
+            mkdir -p "$dest/$(dirname "$f")"
+            cp "$f" "$dest/$f"
+          done)
+          MANAGED_SKILLS+=("${CLI_NAME}/${skill_name}")
+        done
+
+        # Update manifest
+        MANIFEST_PATH="${TARGET_DIR}/${MANAGED_MANIFEST}"
+        if [[ -f "$MANIFEST_PATH" ]]; then
+          grep -v "^${CLI_NAME}/" "$MANIFEST_PATH" > "${MANIFEST_PATH}.tmp" || true
+          mv "${MANIFEST_PATH}.tmp" "$MANIFEST_PATH"
+        fi
+        for skill in "${MANAGED_SKILLS[@]}"; do
+          echo "$skill" >> "$MANIFEST_PATH"
+        done
+        sort -u -o "$MANIFEST_PATH" "$MANIFEST_PATH"
+
+        # Remove stale skills
+        if [[ -d "${TARGET_DIR}/${CLI_NAME}" ]]; then
+          for existing in "${TARGET_DIR}/${CLI_NAME}"/*/; do
+            existing_name=$(basename "$existing")
+            found=false
+            for skill_dir in "${SKILL_DIRS[@]}"; do
+              [[ "$(basename "$skill_dir")" == "$existing_name" ]] && found=true && break
+            done
+            if [[ "$found" == "false" ]]; then
+              echo "  Removing stale: ${existing_name}"
+              rm -rf "$existing"
+            fi
+          done
+        fi
+
+        [[ "$DRY_RUN" == "remote" ]] && echo "DRY_RUN=remote: done" && exit 0
+
+        # Commit
+        cd "$TARGET_DIR"
+        git add -A
+        if git diff --cached --quiet; then
+          echo "No changes to commit"
+          exit 0
+        fi
+
+        git config user.name "${CLI_NAME}-cli[bot]"
+        git config user.email "${CLI_NAME}-cli[bot]@users.noreply.github.com"
+        git commit -m "Sync ${CLI_NAME} skills from ${RELEASE_TAG}
+
+        Source: ${SOURCE_SHA}"
+
+        [[ "$DRY_RUN" == "local" ]] && echo "DRY_RUN=local: done" && exit 0
+
+        # Push
+        echo "::group::Push to ${SKILLS_REPO}"
+        if ! git push origin main; then
+          git pull --rebase origin main
+          git push origin main
+        fi
+        echo "::endgroup::"
+        echo "Skills synced successfully"

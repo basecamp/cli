@@ -1,0 +1,111 @@
+name: CLI Rubric Check
+description: Score a Go CLI against the 37signals CLI rubric
+
+inputs:
+  cli-binary:
+    description: Path to the built CLI binary
+    required: true
+  profile:
+    description: Rubric profile (api-cli or tui-tool)
+    required: false
+    default: api-cli
+
+outputs:
+  score:
+    description: Number of criteria passed
+    value: ${{ steps.score.outputs.score }}
+  total:
+    description: Total criteria for profile
+    value: ${{ steps.score.outputs.total }}
+  report:
+    description: Full rubric report
+    value: ${{ steps.score.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Verify binary exists
+      shell: bash
+      run: |
+        if [ ! -x "${{ inputs.cli-binary }}" ]; then
+          echo "::error::CLI binary not found or not executable: ${{ inputs.cli-binary }}"
+          exit 1
+        fi
+
+    - name: Score rubric
+      id: score
+      shell: bash
+      run: |
+        BINARY="${{ inputs.cli-binary }}"
+        PROFILE="${{ inputs.profile }}"
+        PASSED=0
+        FAILED=0
+        TOTAL=0
+        REPORT=""
+
+        check() {
+          local id="$1" desc="$2" result="$3"
+          TOTAL=$((TOTAL + 1))
+          if [ "$result" = "pass" ]; then
+            PASSED=$((PASSED + 1))
+            REPORT="${REPORT}${id} | PASS | ${desc}\n"
+          else
+            FAILED=$((FAILED + 1))
+            REPORT="${REPORT}${id} | FAIL | ${desc}\n"
+          fi
+        }
+
+        # 2A.1: --version flag
+        if "$BINARY" --version >/dev/null 2>&1; then
+          check "2A.1" "--version with embedded version" "pass"
+        else
+          check "2A.1" "--version with embedded version" "fail"
+        fi
+
+        # 1B.1: Exit codes - bad usage should exit 1
+        "$BINARY" --nonexistent-flag >/dev/null 2>&1
+        EXIT_CODE=$?
+        if [ "$EXIT_CODE" -eq 1 ]; then
+          check "1B.1" "Exit code 1 on bad usage" "pass"
+        else
+          check "1B.1" "Exit code 1 on bad usage (got $EXIT_CODE)" "fail"
+        fi
+
+        if [ "$PROFILE" = "api-cli" ]; then
+          # 1A.1: --json flag
+          if "$BINARY" --help 2>&1 | grep -q '\-\-json'; then
+            check "1A.1" "--json flag available" "pass"
+          else
+            check "1A.1" "--json flag available" "fail"
+          fi
+
+          # 1A.6: --agent flag
+          if "$BINARY" --help 2>&1 | grep -q '\-\-agent'; then
+            check "1A.6" "--agent flag available" "pass"
+          else
+            check "1A.6" "--agent flag available" "fail"
+          fi
+
+          # 1C.1: --help --agent structured JSON
+          if "$BINARY" --help --agent 2>/dev/null | python3 -m json.tool >/dev/null 2>&1; then
+            check "1C.1" "--help --agent emits JSON" "pass"
+          else
+            check "1C.1" "--help --agent emits JSON" "fail"
+          fi
+        fi
+
+        echo "score=${PASSED}" >> "$GITHUB_OUTPUT"
+        echo "total=${TOTAL}" >> "$GITHUB_OUTPUT"
+
+        # Write report
+        {
+          echo "report<<RUBRIC_EOF"
+          echo "# Rubric Score: ${PASSED}/${TOTAL}"
+          echo ""
+          echo "| Criterion | Status | Description |"
+          echo "|-----------|--------|-------------|"
+          echo -e "$REPORT"
+          echo "RUBRIC_EOF"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "## Rubric Score: ${PASSED}/${TOTAL}" >> "$GITHUB_STEP_SUMMARY"
