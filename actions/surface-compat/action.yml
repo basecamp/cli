@@ -1,0 +1,110 @@
+name: CLI Surface Compatibility Check
+description: Fail if CLI flags or subcommands were removed (breaking change)
+
+inputs:
+  cli-binary:
+    description: Path to the built CLI binary
+    required: true
+  baseline:
+    description: Path to the baseline surface snapshot file
+    required: true
+
+outputs:
+  added:
+    description: Number of surface entries added
+    value: ${{ steps.diff.outputs.added }}
+  removed:
+    description: Number of surface entries removed (breaking)
+    value: ${{ steps.diff.outputs.removed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Verify inputs
+      shell: bash
+      run: |
+        if [ ! -x "${{ inputs.cli-binary }}" ]; then
+          echo "::error::CLI binary not found: ${{ inputs.cli-binary }}"
+          exit 1
+        fi
+        if [ ! -f "${{ inputs.baseline }}" ]; then
+          echo "::error::Baseline file not found: ${{ inputs.baseline }}"
+          exit 1
+        fi
+
+    - name: Generate current surface
+      shell: bash
+      run: |
+        # Walk the CLI command tree and produce surface snapshot
+        BINARY="${{ inputs.cli-binary }}"
+        ROOT_NAME=$(basename "$BINARY")
+
+        walk_commands() {
+          local cmd_path="$1"
+          local -a args=()
+          if [ "$cmd_path" != "$ROOT_NAME" ]; then
+            args=(${cmd_path#$ROOT_NAME })
+          fi
+
+          local json
+          json=$("$BINARY" "${args[@]}" --help --agent 2>/dev/null) || {
+            echo "::warning::--help --agent failed for: $cmd_path"
+            return 0
+          }
+
+          echo "$json" | jq -r --arg path "$cmd_path" '
+            "CMD \($path)",
+            ((.flags // []) | sort_by(.name) | .[] |
+              "FLAG \($path) --\(.name) type=\(.type)"),
+            ((.subcommands // []) | sort_by(.name) | .[] |
+              "SUB \($path) \(.name)")
+          ' 2>/dev/null || true
+
+          local subs
+          subs=$(echo "$json" | jq -r '.subcommands // [] | .[].name' 2>/dev/null) || true
+          for sub in $subs; do
+            walk_commands "$cmd_path $sub"
+          done
+        }
+
+        walk_commands "$ROOT_NAME" | LC_ALL=C sort > /tmp/surface-current.txt
+
+    - name: Diff surfaces
+      id: diff
+      shell: bash
+      run: |
+        BASELINE="${{ inputs.baseline }}"
+        CURRENT="/tmp/surface-current.txt"
+
+        # comm requires sorted input — sort both with consistent locale
+        # Sort to temp files to avoid modifying the checked-in baseline
+        BASELINE_SORTED=$(mktemp)
+        LC_ALL=C sort "$BASELINE" > "$BASELINE_SORTED"
+        LC_ALL=C sort "$CURRENT" -o "$CURRENT"
+        BASELINE="$BASELINE_SORTED"
+
+        REMOVED=$(comm -23 "$BASELINE" "$CURRENT" | wc -l | tr -d ' ')
+        ADDED=$(comm -13 "$BASELINE" "$CURRENT" | wc -l | tr -d ' ')
+
+        echo "added=${ADDED}" >> "$GITHUB_OUTPUT"
+        echo "removed=${REMOVED}" >> "$GITHUB_OUTPUT"
+
+        if [ "$REMOVED" -gt 0 ]; then
+          echo "::error::${REMOVED} surface entries removed (breaking change)"
+          echo ""
+          echo "Removed entries:"
+          comm -23 "$BASELINE" "$CURRENT"
+          echo ""
+          if [ "$ADDED" -gt 0 ]; then
+            echo "Added entries (informational):"
+            comm -13 "$BASELINE" "$CURRENT"
+          fi
+          exit 1
+        fi
+
+        echo "Surface check passed. ${ADDED} entries added, 0 removed."
+        if [ "$ADDED" -gt 0 ]; then
+          echo ""
+          echo "New entries:"
+          comm -13 "$BASELINE" "$CURRENT"
+        fi
