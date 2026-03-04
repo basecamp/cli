@@ -1,0 +1,30 @@
+# API Coverage
+
+Tracks which API endpoints have corresponding CLI commands.
+
+## Coverage Summary
+
+| Section | Endpoints | Covered | % |
+|---------|-----------|---------|---|
+| Example Resource | 5 | 0 | 0% |
+| **Total** | **5** | **0** | **0%** |
+
+## Detailed Coverage
+
+### Example Resource
+
+| Method | Endpoint | CLI Command | Status |
+|--------|----------|-------------|--------|
+| GET | `/resources.json` | `{{.Name}} resources list` | |
+| GET | `/resources/{id}.json` | `{{.Name}} resources show` | |
+| POST | `/resources.json` | `{{.Name}} resources create` | |
+| PUT | `/resources/{id}.json` | `{{.Name}} resources update` | |
+| DELETE | `/resources/{id}.json` | `{{.Name}} resources delete` | |
+
+## Out of Scope
+
+Endpoints intentionally not covered (e.g., admin-only, deprecated):
+
+| Section | Endpoints | Reason |
+|---------|-----------|--------|
+| — | — | — |

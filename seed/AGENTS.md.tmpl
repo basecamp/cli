@@ -1,0 +1,61 @@
+# {{.Name}} CLI Development Context
+
+## Getting Started
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build setup, testing, and PR workflow.
+
+## Repository Structure
+
+```
+{{.Name}}-cli/
+├── cmd/{{.Name}}/     # Main entrypoint
+├── internal/
+│   ├── auth/          # Authentication
+│   ├── commands/      # Command implementations
+│   ├── config/        # Configuration management
+│   ├── output/        # Output formatting (wraps github.com/basecamp/cli/output)
+│   └── sdk/           # API SDK wrapper
+├── e2e/               # BATS integration tests
+├── skills/            # Agent skills
+└── .claude-plugin/    # Claude Code integration
+```
+
+## Testing
+
+```bash
+make build            # Build binary
+make test             # Run Go unit tests
+make test-e2e         # Run BATS end-to-end tests
+make check            # All checks (fmt-check, vet, lint, test, test-e2e)
+```
+
+## Coding Style
+
+### Go Import Ordering
+
+1. Standard library
+2. Third-party packages
+3. Project-internal packages
+
+Separate each group with a blank line.
+
+### Method Ordering Within Types
+
+1. Constructor (`New*`)
+2. Public methods (alphabetical)
+3. Private methods (alphabetical)
+4. Helpers
+
+### Naming Conventions
+
+- Commands: `newXxxCmd()` returns `*cobra.Command`
+- Error constructors: `Err` prefix (e.g., `ErrNotFound`)
+- Options: functional options pattern (`WithXxx`)
+- Test helpers: `newTestXxx` or `setupXxx`
+
+## Output Format
+
+All commands produce structured output via the `github.com/basecamp/cli/output` package:
+- Success: `{ok: true, data: ..., summary: "...", breadcrumbs: [...]}`
+- Error: `{ok: false, error: "...", code: "...", hint: "..."}`
+- Exit codes: 0=OK, 1=Usage, 2=NotFound, 3=Auth, 4=Forbidden, 5=RateLimit, 6=Network, 7=API, 8=Ambiguous

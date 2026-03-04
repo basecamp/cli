@@ -1,0 +1,27 @@
+package commands
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+
+	// TODO: Replace with your module path
+	"github.com/basecamp/{{.Name}}-cli/skills"
+)
+
+// NewSkillCmd creates the skill command.
+func NewSkillCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "skill",
+		Short: "Print the embedded agent skill file",
+		Long:  "Print the SKILL.md embedded in this binary. Any agent can bootstrap from this output.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			data, err := skills.FS.ReadFile("{{.Name}}/SKILL.md")
+			if err != nil {
+				return fmt.Errorf("reading embedded skill: %w", err)
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), string(data))
+			return err
+		},
+	}
+}

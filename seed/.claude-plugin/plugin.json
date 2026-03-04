@@ -1,0 +1,16 @@
+{
+  "name": "{{.Name}}",
+  "version": "0.1.0",
+  "description": "{{.Name}} integration for Claude Code.",
+  "author": {
+    "name": "37signals",
+    "email": "support@37signals.com"
+  },
+  "hooks": {
+    "SessionStart": ["hooks/session-start.sh"]
+  },
+  "agents": [
+    "agents/navigator.md",
+    "agents/context-linker.md"
+  ]
+}

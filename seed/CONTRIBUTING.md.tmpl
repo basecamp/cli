@@ -1,0 +1,43 @@
+# Contributing to {{.Name}} CLI
+
+## Prerequisites
+
+- Go 1.24+
+- [bats-core](https://github.com/bats-core/bats-core) for e2e tests
+- [golangci-lint](https://golangci-lint.run/) for linting
+
+## Building
+
+```bash
+make build    # Builds to ./bin/{{.Name}}
+```
+
+## Testing
+
+```bash
+make test       # Unit tests
+make test-e2e   # End-to-end tests (requires bats)
+make check      # Full check suite
+```
+
+## PR Workflow
+
+1. Create a feature branch from `main`
+2. Make your changes
+3. Run `make check` to verify all checks pass
+4. Open a pull request
+
+## Code Style
+
+- Run `make fmt` before committing
+- Follow patterns in existing code
+- See AGENTS.md for detailed coding conventions
+
+## Release Process
+
+Releases are automated via GoReleaser on tagged commits.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```

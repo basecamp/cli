@@ -1,0 +1,50 @@
+package commands
+
+// Setup command skeleton — guided first-run onboarding.
+//
+// Modeled on basecamp-cli's setup/wizard command. Detects first-run
+// condition (no credentials + no token env + interactive TTY) and
+// walks the user through authentication and initial configuration.
+//
+// Recommended flow:
+//   1. Welcome           — brief intro, what setup will do
+//   2. Authentication    — run auth login (OAuth, PAT, etc.)
+//   3. Account Selection — if multiple accounts, pick one
+//   4. Project Selection — optional: pick a default project/workspace
+//   5. Save Config       — write to global or local config, ask user
+//   6. Summary           — show what was configured, next steps
+//
+// First-run auto-detection:
+//
+//   func isFirstRun(app *appctx.App) bool {
+//       // No stored credentials
+//       if _, err := credStore.Load(credentialKey); err != nil {
+//           // No token env var
+//           if os.Getenv("APP_TOKEN") == "" {
+//               // Interactive terminal
+//               if isatty.IsTerminal(os.Stdout.Fd()) {
+//                   return true
+//               }
+//           }
+//       }
+//       return false
+//   }
+//
+// Implementation pattern:
+//
+//   func NewSetupCmd() *cobra.Command {
+//       return &cobra.Command{
+//           Use:   "setup",
+//           Short: "Configure {{.Name}} for first use",
+//           Long:  "Interactive setup wizard. Authenticates, selects defaults, and saves configuration.",
+//           RunE:  runSetup,
+//       }
+//   }
+//
+//   type SetupResult struct {
+//       Version     string `json:"version"`
+//       Status      string `json:"status"` // "complete", "partial", "skipped"
+//       AccountID   int64  `json:"account_id,omitempty"`
+//       AccountName string `json:"account_name,omitempty"`
+//       ConfigScope string `json:"config_scope,omitempty"` // "global", "local"
+//   }

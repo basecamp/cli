@@ -1,0 +1,80 @@
+version: 2
+
+builds:
+  - main: ./cmd/{{ .ProjectName }}
+    binary: "{{ .ProjectName }}"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+universal_binaries:
+  - replace: true
+
+archives:
+  - format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+
+sboms:
+  - artifacts: archive
+
+# macOS notarization — requires Apple Developer credentials.
+# Set GORELEASER_NOTARIZE_MACOS=true and configure notarytool credentials
+# in CI to enable. See: https://goreleaser.com/customization/notarize/
+notarize:
+  - macos:
+      - enabled: '{{ isEnvSet "GORELEASER_NOTARIZE_MACOS" }}'
+        sign:
+          certificate: "{{.Env.MACOS_SIGN_P12}}"
+          password: "{{.Env.MACOS_SIGN_PASSWORD}}"
+        notarize:
+          issuer_id: "{{.Env.MACOS_NOTARY_ISSUER_ID}}"
+          key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
+          key: "{{.Env.MACOS_NOTARY_KEY}}"
+
+scoops:
+  - repository:
+      owner: basecamp
+      name: scoop-bucket
+    homepage: "https://github.com/basecamp/{{ .ProjectName }}"
+    description: "{{ .ProjectName }} CLI"
+    license: MIT
+
+# AUR publishing is handled by scripts/publish-aur.sh in CI.
+# See: https://wiki.archlinux.org/title/AUR_submission_guidelines
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"

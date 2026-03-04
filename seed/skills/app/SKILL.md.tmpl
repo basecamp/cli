@@ -1,0 +1,37 @@
+---
+name: {{.Name}}
+description: Interact with {{.Name}} via the CLI
+---
+
+# {{.Name}} CLI Skill
+
+Use the `{{.Name}}` CLI to interact with the {{.Name}} API.
+
+## Authentication
+
+```bash
+{{.Name}} auth login    # Interactive OAuth login
+{{.Name}} auth status   # Check authentication status
+```
+
+## Common Commands
+
+```bash
+# List resources
+{{.Name}} <resource> list
+
+# Show details
+{{.Name}} <resource> show <id>
+
+# Create
+{{.Name}} <resource> create --name "New Resource"
+```
+
+## Output Formats
+
+- Default (TTY): Styled terminal output
+- `--json`: Full JSON envelope
+- `--quiet`: Raw JSON data only
+- `--agent`: JSON + suppress prompts
+- `--ids-only`: One ID per line
+- `--count`: Integer count

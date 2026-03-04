@@ -1,0 +1,46 @@
+package commands
+
+// Doctor command skeleton — checks CLI health.
+//
+// Modeled on basecamp-cli's doctor command. Each check returns a
+// Check{Name, Status, Message, Hint} struct. Checks run sequentially
+// and the result is rendered as a styled checklist (TTY) or JSON
+// envelope (piped/--json).
+//
+// Recommended checks:
+//   1. CLI Version      — binary version matches latest release
+//   2. Config Files     — config directory exists, files readable
+//   3. Credentials      — credential store accessible (keyring or file)
+//   4. Authentication   — token valid, not expired
+//   5. API Connectivity — base URL reachable, healthy response
+//   6. Account Access   — authenticated user can list resources
+//   7. Cache            — cache directory exists, size reasonable
+//   8. Shell Completion — completion script installed for current shell
+//   9. Claude Plugin    — .claude-plugin/ installed, hooks present
+//
+// Implementation pattern:
+//
+//   func NewDoctorCmd() *cobra.Command {
+//       cmd := &cobra.Command{
+//           Use:   "doctor",
+//           Short: "Check CLI configuration and connectivity",
+//           RunE:  runDoctor,
+//       }
+//       cmd.Flags().BoolP("verbose", "v", false, "Show all checks including skipped")
+//       return cmd
+//   }
+//
+//   type Check struct {
+//       Name    string `json:"name"`
+//       Status  string `json:"status"`   // "pass", "fail", "warn", "skip"
+//       Message string `json:"message"`
+//       Hint    string `json:"hint,omitempty"`
+//   }
+//
+//   type DoctorResult struct {
+//       Checks  []Check `json:"checks"`
+//       Passed  int     `json:"passed"`
+//       Failed  int     `json:"failed"`
+//       Warned  int     `json:"warned"`
+//       Skipped int     `json:"skipped"`
+//   }
