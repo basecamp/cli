@@ -82,8 +82,8 @@ jobs:
         run: |
           # Generate current snapshot
           make build
-          BINARY=$(ls bin/)
-          scripts/check-cli-surface.sh "./bin/$BINARY" /tmp/current-surface.txt
+          BINARY=$(find bin/ -maxdepth 1 -type f -print -quit)
+          scripts/check-cli-surface.sh "$BINARY" /tmp/current-surface.txt
           # Generate baseline from previous tag in isolated worktree
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           if [ -n "$PREV_TAG" ]; then
@@ -93,8 +93,8 @@ jobs:
             git worktree add "$WORKTREE_DIR" "$PREV_TAG"
             cd "$WORKTREE_DIR"
             make build
-            BINARY=$(ls bin/)
-            if "$SCRIPT_DIR/check-cli-surface.sh" "./bin/$BINARY" /tmp/baseline-surface.txt 2>/dev/null; then
+            BINARY=$(find bin/ -maxdepth 1 -type f -print -quit)
+            if "$SCRIPT_DIR/check-cli-surface.sh" "$BINARY" /tmp/baseline-surface.txt 2>/dev/null; then
               cd -
               git worktree remove "$WORKTREE_DIR" --force
               trap - EXIT
