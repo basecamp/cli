@@ -21,18 +21,30 @@ SKILLS_REPO="basecamp/skills"
 SKILLS_DIR="skills"
 MANAGED_MANIFEST=".managed-skills"
 
-: "${SKILLS_TOKEN:?SKILLS_TOKEN is required}"
 : "${RELEASE_TAG:?RELEASE_TAG is required}"
 : "${SOURCE_SHA:?SOURCE_SHA is required}"
 
 DRY_RUN="${DRY_RUN:-}"
+SKILLS_TOKEN="${SKILLS_TOKEN:-}"
 
-# Clone the skills repo
+# SKILLS_TOKEN is required unless running a local dry-run
+if [ -z "$SKILLS_TOKEN" ] && [ "$DRY_RUN" != "local" ]; then
+  echo "Error: SKILLS_TOKEN is required (set DRY_RUN=local to skip clone)" >&2
+  exit 1
+fi
+
+# Clone the skills repo (skipped for local dry-run)
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-echo "Cloning ${SKILLS_REPO}..."
-git clone "https://x-access-token:${SKILLS_TOKEN}@github.com/${SKILLS_REPO}.git" "$WORK_DIR/skills-repo" 2>/dev/null
+if [ "$DRY_RUN" = "local" ] && [ -z "$SKILLS_TOKEN" ]; then
+  echo "Local dry-run: creating stub target directory..."
+  mkdir -p "$WORK_DIR/skills-repo"
+  (cd "$WORK_DIR/skills-repo" && git init -q)
+else
+  echo "Cloning ${SKILLS_REPO}..."
+  git clone "https://x-access-token:${SKILLS_TOKEN}@github.com/${SKILLS_REPO}.git" "$WORK_DIR/skills-repo" 2>/dev/null
+fi
 
 TARGET_DIR="${WORK_DIR}/skills-repo"
 
