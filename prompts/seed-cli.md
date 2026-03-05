@@ -86,7 +86,7 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
 
    **Skills & plugin:**
    - `seed/.claude-plugin/` → `.claude-plugin/` (customize)
-   - `ln -s ../../skills/<app> .claude-plugin/skills/<app>` (create skills symlink)
+   - `mkdir -p .claude-plugin/skills && ln -s ../../skills/<app> .claude-plugin/skills/<app>` (create skills symlink)
    - `seed/skills/app/SKILL.md.tmpl` → `skills/<app>/SKILL.md` (customize)
    - `seed/skills/embed.go.tmpl` → `skills/embed.go`
 

@@ -6,6 +6,11 @@
 
 set -euo pipefail
 
+# Require jq for JSON parsing
+if ! command -v jq &>/dev/null; then
+  exit 0
+fi
+
 # Read tool input from stdin (JSON with tool_name, tool_input, tool_output)
 input=$(cat)
 
@@ -24,7 +29,7 @@ tool_output=$(echo "$input" | jq -r '.tool_output // empty' 2>/dev/null)
 # Only match lines that look like git/hook errors, not commit subject lines
 # (e.g. "[branch abc1234] Fix failed login" should not trigger this guard).
 # We strip the "[branch hash] subject" success line before scanning for errors.
-filtered_output=$(echo "$tool_output" | grep -v '^\[.*[a-f0-9]\{7,\}\]')
+filtered_output=$(echo "$tool_output" | grep -v '^\[.*[a-f0-9]\{7,\}\]' || true)
 if echo "$filtered_output" | grep -qiE '(^|[[:space:]])(error|fatal|aborted|rejected)[[:space:]:]|hook[[:space:]].*[[:space:]]failed|pre-commit[[:space:]].*[[:space:]]failed|^error:'; then
   exit 0
 fi
