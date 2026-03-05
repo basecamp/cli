@@ -6,11 +6,7 @@
     "name": "37signals",
     "email": "support@37signals.com"
   },
-  "hooks": {
-    "SessionStart": ["hooks/session-start.sh"]
-  },
-  "agents": [
-    "agents/navigator.md",
-    "agents/context-linker.md"
-  ]
+  "homepage": "https://github.com/basecamp/{{.Name}}-cli",
+  "repository": "https://github.com/basecamp/{{.Name}}-cli",
+  "license": "MIT"
 }

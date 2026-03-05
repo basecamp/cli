@@ -1,76 +1,48 @@
 #!/usr/bin/env bash
-# session-start.sh — Load CLI context at session start for Claude Code.
+# session-start.sh - {{.Name}} plugin liveness check
 #
-# Emits config, auth status, and active profile so the agent knows
-# what environment it's operating in.
-#
-# TODO: Replace CLI_NAME, config paths, and commands for your CLI.
+# Lightweight: one subprocess call. Context priming happens on first
+# use via the /{{.Name}} skill, not here.
 
 set -euo pipefail
 
-CLI_NAME="${CLI_NAME:-mycli}"
+if ! command -v {{.Name}} &>/dev/null; then
+  cat << 'EOF'
+<hook-output>
+{{.Name}} plugin active — CLI not found on PATH.
+Install: https://github.com/basecamp/{{.Name}}-cli#installation
+</hook-output>
+EOF
+  exit 0
+fi
 
-# Require jq for JSON parsing
+auth_json=$({{.Name}} auth status --json 2>/dev/null || echo '{}')
+
 if ! command -v jq &>/dev/null; then
+  cat << 'EOF'
+<hook-output>
+{{.Name}} plugin active.
+</hook-output>
+EOF
   exit 0
 fi
 
-# Find the CLI binary — prefer PATH, fall back to plugin's bin directory
-if command -v "$CLI_NAME" &>/dev/null; then
-  CLI_BIN="$CLI_NAME"
+is_auth=false
+if parsed_auth=$(echo "$auth_json" | jq -er '.data.authenticated' 2>/dev/null); then
+  is_auth="$parsed_auth"
+fi
+
+if [[ "$is_auth" == "true" ]]; then
+  cat << 'EOF'
+<hook-output>
+{{.Name}} plugin active.
+</hook-output>
+EOF
 else
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  CLI_BIN="${SCRIPT_DIR}/../../bin/${CLI_NAME}"
-  if [[ ! -x "$CLI_BIN" ]]; then
-    cat << EOF
+  cat << 'EOF'
 <hook-output>
-${CLI_NAME} plugin: CLI not found.
-Install: https://github.com/basecamp/${CLI_NAME}-cli#installation
+{{.Name}} plugin active — not authenticated.
+Run: {{.Name}} auth login
 </hook-output>
 EOF
-    exit 0
-  fi
 fi
-
-# Get CLI version
-cli_version=$("$CLI_BIN" --version 2>/dev/null | awk '{print $NF}' || true)
-
-# Check if we have configuration
-config_output=$("$CLI_BIN" config show --json 2>/dev/null || echo '{}')
-has_config=$(echo "$config_output" | jq -r '.data // empty' 2>/dev/null)
-
-if [[ -z "$has_config" ]] || [[ "$has_config" == "{}" ]]; then
-  exit 0
-fi
-
-# Build context message
-context="${CLI_NAME} context loaded:"
-
-if [[ -n "$cli_version" ]]; then
-  context+="\n  CLI: v${cli_version}"
-fi
-
-# Show active profile if using named profiles
-active_profile=$("$CLI_BIN" profile show --json 2>/dev/null | jq -r '.data.name // empty' 2>/dev/null || true)
-if [[ -n "$active_profile" ]]; then
-  context+="\n  Profile: $active_profile"
-fi
-
-# Check if authenticated
-auth_status=$("$CLI_BIN" auth status --json 2>/dev/null || echo '{}')
-is_auth=$(echo "$auth_status" | jq -r '.data.authenticated // false')
-
-if [[ "$is_auth" != "true" ]]; then
-  context+="\n  Auth: Not authenticated (run: ${CLI_NAME} auth login)"
-fi
-
-cat << EOF
-<hook-output>
-$(echo -e "$context")
-
-Use \`${CLI_NAME}\` commands to interact with the API:
-  ${CLI_NAME} auth login          # Authenticate
-  ${CLI_NAME} auth status         # Check auth status
-  ${CLI_NAME} doctor              # Diagnose configuration
-</hook-output>
-EOF
