@@ -11,12 +11,10 @@
 #
 # Optional env vars:
 #   DRY_RUN        — "local" to skip push, "remote" to skip commit+push
-#
-# TODO: Replace CLI_NAME with your CLI name.
 
 set -euo pipefail
 
-CLI_NAME="${CLI_NAME:-mycli}"
+CLI_NAME="${CLI_NAME:-cli}"
 SKILLS_REPO="basecamp/skills"
 SKILLS_DIR="skills"
 MANAGED_MANIFEST=".managed-skills"

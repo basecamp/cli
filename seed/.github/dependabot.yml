@@ -2,7 +2,6 @@
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
 
 version: 2
-
 updates:
   # Go modules
   - package-ecosystem: gomod

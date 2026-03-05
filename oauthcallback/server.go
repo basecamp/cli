@@ -24,7 +24,7 @@ func WaitForCallback(ctx context.Context, expectedState string, listener net.Lis
 			return "", fmt.Errorf("failed to start callback server: %w", err)
 		}
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	codeCh := make(chan string, 1)
 	errCh := make(chan error, 1)
@@ -53,7 +53,7 @@ func WaitForCallback(ctx context.Context, expectedState string, listener net.Lis
 	shutdown := func() {
 		once.Do(func() {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			go func() { defer cancel(); server.Shutdown(shutdownCtx) }()
+			go func() { defer cancel(); _ = server.Shutdown(shutdownCtx) }()
 		})
 	}
 
@@ -64,31 +64,31 @@ func WaitForCallback(ctx context.Context, expectedState string, listener net.Lis
 
 		if errParam != "" {
 			sendErr(errCh, fmt.Errorf("OAuth error: %s", errParam))
-			fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>You can close this window.</p></body></html>")
+			_, _ = fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>You can close this window.</p></body></html>")
 			shutdown()
 			return
 		}
 
 		if state != expectedState {
 			sendErr(errCh, fmt.Errorf("state mismatch: CSRF protection failed"))
-			fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>State mismatch.</p></body></html>")
+			_, _ = fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>State mismatch.</p></body></html>")
 			shutdown()
 			return
 		}
 
 		if code == "" {
 			sendErr(errCh, fmt.Errorf("OAuth callback missing authorization code"))
-			fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>Missing authorization code.</p></body></html>")
+			_, _ = fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>Missing authorization code.</p></body></html>")
 			shutdown()
 			return
 		}
 
 		send(codeCh, code)
-		fmt.Fprint(w, "<html><body><h1>Authentication successful!</h1><p>You can close this window.</p></body></html>")
+		_, _ = fmt.Fprint(w, "<html><body><h1>Authentication successful!</h1><p>You can close this window.</p></body></html>")
 		shutdown()
 	})
 
-	go server.Serve(listener)
+	go func() { _ = server.Serve(listener) }()
 
 	select {
 	case code := <-codeCh:

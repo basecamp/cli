@@ -16,7 +16,7 @@ func listen(t *testing.T) net.Listener {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { _ = ln.Close() })
 	return ln
 }
 
@@ -44,7 +44,7 @@ func TestWaitForCallback_Success(t *testing.T) {
 
 	resp, err := http.Get(fmt.Sprintf("http://%s/callback?state=test-state-123&code=auth-code-456", addr))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	select {
 	case code := <-codeCh:
@@ -73,7 +73,7 @@ func TestWaitForCallback_MissingCode(t *testing.T) {
 
 	resp, err := http.Get(fmt.Sprintf("http://%s/callback?state=state", addr))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	select {
 	case err := <-errCh:
@@ -100,7 +100,7 @@ func TestWaitForCallback_StateMismatch(t *testing.T) {
 
 	resp, err := http.Get(fmt.Sprintf("http://%s/callback?state=wrong-state&code=abc", addr))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	select {
 	case err := <-errCh:
@@ -127,7 +127,7 @@ func TestWaitForCallback_OAuthError(t *testing.T) {
 
 	resp, err := http.Get(fmt.Sprintf("http://%s/callback?error=access_denied", addr))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	select {
 	case err := <-errCh:
