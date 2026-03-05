@@ -1,0 +1,336 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      APPNAME_NO_KEYRING: "1"
+      # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+          # repositories: <private-module>
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Check module tidiness
+        run: make tidy-check
+
+      - name: Run unit tests
+        run: go test -v ./...
+
+      - name: Build binary
+        run: make build
+
+      - name: Smoke test
+        run: |
+          BINARY=$(find bin/ -maxdepth 1 -type f | head -1)
+          "$BINARY" --version
+          "$BINARY" --help | head -5
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
+        with:
+          version: v2.9.0
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Run govulncheck
+        # @latest intentional — pinning delays scanning improvements and
+        # new Go version support for no meaningful reproducibility gain.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  race-check:
+    name: Race Detection
+    runs-on: ubuntu-latest
+    env:
+      APPNAME_NO_KEYRING: "1"
+      # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Run tests with race detector
+        run: go test -race -v ./...
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    env:
+      APPNAME_NO_KEYRING: "1"
+      # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Cache BATS
+        id: cache-bats
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: /usr/local/libexec/bats-core
+          key: bats-1.11.0
+
+      - name: Install BATS
+        if: steps.cache-bats.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch v1.11.0 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          sudo /tmp/bats-core/install.sh /usr/local
+
+      - name: Run BATS integration tests
+        run: make test-e2e
+
+  cli-surface:
+    name: CLI Surface Check
+    runs-on: ubuntu-latest
+    env:
+      APPNAME_NO_KEYRING: "1"
+      # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Build and snapshot PR surface
+        run: |
+          make build
+          BINARY=$(find bin/ -maxdepth 1 -type f | head -1)
+          scripts/check-cli-surface.sh "$BINARY" /tmp/current-surface.txt
+
+      - name: Build and snapshot baseline surface
+        run: |
+          SCRIPT_DIR="$(pwd)/scripts"
+          git worktree add /tmp/baseline-tree origin/main
+          cd /tmp/baseline-tree
+          make build
+          BINARY=$(find bin/ -maxdepth 1 -type f | head -1)
+          "$SCRIPT_DIR/check-cli-surface.sh" "$BINARY" /tmp/baseline-surface.txt
+
+      - name: Compare surfaces
+        run: scripts/check-cli-surface-diff.sh /tmp/baseline-surface.txt /tmp/current-surface.txt
+
+      - name: Cleanup worktree
+        if: always()
+        run: git worktree remove /tmp/baseline-tree --force 2>/dev/null || true
+
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true
+    env:
+      APPNAME_NO_KEYRING: "1"
+      # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 2
+
+      - name: Generate token for private module access
+        if: vars.RELEASE_CLIENT_ID != ''
+        id: app-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.RELEASE_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: basecamp
+
+      - name: Check for benchmark-relevant changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3
+        with:
+          filters: |
+            bench:
+              - 'internal/**'
+              - 'go.mod'
+              - 'go.sum'
+
+      - name: Set up Go
+        if: steps.filter.outputs.bench == 'true'
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Configure git for private modules
+        if: steps.filter.outputs.bench == 'true' && steps.app-token.outputs.token != ''
+        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Run benchmarks
+        if: steps.filter.outputs.bench == 'true'
+        run: go test -bench=. -benchmem -count=3 ./internal/... | tee benchmarks.txt
+
+      - name: Download previous benchmark baseline
+        if: steps.filter.outputs.bench == 'true'
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: benchmarks-baseline.txt
+          key: benchmarks-baseline-${{ github.sha }}
+          restore-keys: |
+            benchmarks-baseline-
+
+      - name: Install benchstat
+        if: steps.filter.outputs.bench == 'true'
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Compare benchmarks
+        if: steps.filter.outputs.bench == 'true' && hashFiles('benchmarks-baseline.txt') != ''
+        run: |
+          echo "## Benchmark Comparison" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          benchstat benchmarks-baseline.txt benchmarks.txt >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check for significant regression
+        if: steps.filter.outputs.bench == 'true' && hashFiles('benchmarks-baseline.txt') != ''
+        run: |
+          benchstat benchmarks-baseline.txt benchmarks.txt > comparison.txt 2>&1 || true
+          if grep -E '\+[2-9][0-9]\.[0-9]+%|\+[1-9][0-9][0-9]+' comparison.txt; then
+            echo "::error::Performance regression detected (>20% slower). See benchmark comparison in step summary."
+            exit 1
+          fi
+
+      - name: Save benchmark baseline
+        if: steps.filter.outputs.bench == 'true'
+        run: cp benchmarks.txt benchmarks-baseline.txt
+
+      - name: Cache benchmark baseline
+        if: steps.filter.outputs.bench == 'true'
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        with:
+          path: benchmarks-baseline.txt
+          key: benchmarks-baseline-${{ github.sha }}
+
+      - name: Upload benchmark results
+        if: steps.filter.outputs.bench == 'true'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: benchmarks
+          path: benchmarks.txt
+          retention-days: 30
