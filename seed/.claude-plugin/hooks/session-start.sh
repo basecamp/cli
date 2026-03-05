@@ -6,26 +6,28 @@
 
 set -euo pipefail
 
-if ! command -v {{.Name}} &>/dev/null; then
-  cat << 'EOF'
+CLI="{{.Name}}"
+
+if ! command -v "$CLI" &>/dev/null; then
+  cat << EOF
 <hook-output>
-{{.Name}} plugin active — CLI not found on PATH.
-Install: https://github.com/basecamp/{{.Name}}-cli#installation
+$CLI plugin active — CLI not found on PATH.
+Install: https://github.com/basecamp/${CLI}-cli#installation
 </hook-output>
 EOF
   exit 0
 fi
-
-auth_json=$({{.Name}} auth status --json 2>/dev/null || echo '{}')
 
 if ! command -v jq &>/dev/null; then
-  cat << 'EOF'
+  cat << EOF
 <hook-output>
-{{.Name}} plugin active.
+$CLI plugin active.
 </hook-output>
 EOF
   exit 0
 fi
+
+auth_json=$("$CLI" auth status --json 2>/dev/null || echo '{}')
 
 is_auth=false
 if parsed_auth=$(echo "$auth_json" | jq -er '.data.authenticated' 2>/dev/null); then
@@ -33,16 +35,16 @@ if parsed_auth=$(echo "$auth_json" | jq -er '.data.authenticated' 2>/dev/null); 
 fi
 
 if [[ "$is_auth" == "true" ]]; then
-  cat << 'EOF'
+  cat << EOF
 <hook-output>
-{{.Name}} plugin active.
+$CLI plugin active.
 </hook-output>
 EOF
 else
-  cat << 'EOF'
+  cat << EOF
 <hook-output>
-{{.Name}} plugin active — not authenticated.
-Run: {{.Name}} auth login
+$CLI plugin active — not authenticated.
+Run: $CLI auth login
 </hook-output>
 EOF
 fi

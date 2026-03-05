@@ -54,12 +54,16 @@ if [[ -n "$found_in_branch" ]] || [[ -n "$found_in_msg" ]]; then
   # Extract just the number
   item_id=$(echo "$ref" | grep -oE '[0-9]+')
 
+  short_sha=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+  comment="Commit ${short_sha}: ${last_commit_msg}"
+  escaped_comment=$(printf '%q' "$comment")
+
   cat << EOF
 <hook-output>
 Detected {{.Name}} item reference: $ref
 
 To link this commit to {{.Name}}:
-  {{.Name}} comment "Commit $(git rev-parse --short HEAD 2>/dev/null): $last_commit_msg" --on $item_id
+  {{.Name}} comment ${escaped_comment} --on $item_id
 
 Or complete the item:
   {{.Name}} done $item_id

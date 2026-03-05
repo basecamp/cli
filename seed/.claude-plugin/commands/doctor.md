@@ -21,6 +21,6 @@ Interpret the output:
 For any failures, follow the `hint` field in the check output. Common fixes:
 - Authentication failed → `{{.Name}} auth login`
 - API unreachable → check network / VPN
-- Plugin not installed → `claude plugin install {{.Name}}`
+- Plugin not installed → `{{.Name}} setup claude`
 
 Report results concisely: list failures and warnings with their hints. If everything passes, say so.
