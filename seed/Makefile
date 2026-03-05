@@ -15,15 +15,28 @@ LEGACY_PATTERN ?=
 
 .DEFAULT_GOAL := check
 
-.PHONY: check build test test-race test-e2e vet lint fmt fmt-check bench bench-cpu bench-mem \
+.PHONY: check check-toolchain build test test-race test-e2e vet lint fmt fmt-check bench bench-cpu bench-mem \
 	check-all clean tidy tidy-check check-naming replace-check check-surface check-surface-diff \
 	check-surface-compat vuln secrets security provenance-check release-check release \
-	sync-skills sync-skills-remote collect-profile build-pgo
+	sync-skills sync-skills-remote collect-profile build-pgo test-coverage coverage
 
 # Default target: fast checks suitable for pre-commit / inner-loop dev.
 check: fmt-check vet test test-e2e tidy-check
 
-build:
+# Guard against Go toolchain mismatch (mise environment)
+check-toolchain:
+	@GOV=$$(go version | awk '{print $$3}'); \
+	ROOT=$$(go env GOROOT); \
+	ROOTV=$$($$ROOT/bin/go version | awk '{print $$3}'); \
+	if [ "$$GOV" != "$$ROOTV" ]; then \
+		echo "ERROR: Go toolchain mismatch"; \
+		echo "  PATH go:   $$GOV ($$(which go))"; \
+		echo "  GOROOT go: $$ROOTV ($$ROOT/bin/go)"; \
+		echo "Fix: eval \"\$$(mise hook-env)\" && make <target>"; \
+		exit 1; \
+	fi
+
+build: check-toolchain
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/$(BINARY_NAME)
 
 # Build with PGO optimization (requires default.pgo)
@@ -37,10 +50,10 @@ build-pgo:
 		go build $(PGO_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/$(BINARY_NAME); \
 	fi
 
-test:
+test: check-toolchain
 	go test ./...
 
-test-race:
+test-race: check-toolchain
 	go test -race ./...
 
 test-e2e:
@@ -58,13 +71,22 @@ fmt:
 fmt-check:
 	@test -z "$$(gofmt -l .)" || (echo "Run 'make fmt' to fix formatting" && gofmt -l . && exit 1)
 
-bench:
+# Run tests with coverage
+test-coverage: check-toolchain
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+
+# Coverage with browser open
+coverage: test-coverage
+	@command -v open >/dev/null 2>&1 && open coverage.html || true
+
+bench: check-toolchain
 	go test -bench=. -benchmem ./...
 
-bench-cpu:
+bench-cpu: check-toolchain
 	go test -bench=. -cpuprofile=cpu.prof ./...
 
-bench-mem:
+bench-mem: check-toolchain
 	go test -bench=. -memprofile=mem.prof ./...
 
 tidy:

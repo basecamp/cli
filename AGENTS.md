@@ -33,6 +33,7 @@ All packages import from `github.com/basecamp/cli/<package>`.
 | `oauthcallback` | `WaitForCallback()` starts local server, returns authorization code |
 | `profile` | Named profiles (`--profile`, `APP_PROFILE`), base URL + app-specific settings |
 | `surface` | `Snapshot()` walks Cobra tree; `Diff()` detects breaking removals |
+| `editor` | `Open(initialContent)` launches `$EDITOR`, returns edited text |
 
 ## Testing
 

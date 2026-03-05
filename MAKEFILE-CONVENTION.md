@@ -31,6 +31,9 @@ Standard Makefile targets for 37signals Go CLIs and libraries. The seed template
 | `bench` | `go test -bench=. -benchmem ./...` — benchmarks. |
 | `bench-cpu` | Benchmarks with CPU profile output. |
 | `bench-mem` | Benchmarks with memory profile output. |
+| `check-toolchain` | Guard against Go toolchain mismatch (PATH go vs GOROOT go). Wired as prereq to `build` and `test`. |
+| `test-coverage` | `go test -coverprofile=coverage.out` + generate `coverage.html`. |
+| `coverage` | Alias for `test-coverage` that auto-opens the report in a browser. |
 | `check-all` | Full CI suite: fmt-check + vet + lint + test-race + test-e2e + bench. |
 
 ## Composition Rules
