@@ -41,7 +41,14 @@ if [ "$DRY_RUN" = "local" ] && [ -z "$SKILLS_TOKEN" ]; then
   (cd "$WORK_DIR/skills-repo" && git init -q)
 else
   echo "Cloning ${SKILLS_REPO}..."
-  git clone "https://x-access-token:${SKILLS_TOKEN}@github.com/${SKILLS_REPO}.git" "$WORK_DIR/skills-repo" 2>/dev/null
+  # Use a temp gitconfig so the token never appears in process args
+  TEMP_GITCONFIG="${WORK_DIR}/.gitconfig"
+  cat > "$TEMP_GITCONFIG" <<GITCFG
+[url "https://x-access-token:${SKILLS_TOKEN}@github.com/"]
+	insteadOf = https://github.com/
+GITCFG
+  chmod 600 "$TEMP_GITCONFIG"
+  GIT_CONFIG_GLOBAL="$TEMP_GITCONFIG" git clone "https://github.com/${SKILLS_REPO}.git" "$WORK_DIR/skills-repo"
 fi
 
 TARGET_DIR="${WORK_DIR}/skills-repo"
