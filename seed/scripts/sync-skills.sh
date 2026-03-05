@@ -38,7 +38,7 @@ TARGET_DIR="${WORK_DIR}/skills-repo"
 
 # Collect skill directories from source
 SKILL_DIRS=()
-for skill_dir in ${SKILLS_DIR}/*/; do
+for skill_dir in "${SKILLS_DIR}"/*/; do
   if [[ -f "${skill_dir}/SKILL.md" ]]; then
     SKILL_DIRS+=("$skill_dir")
   fi
