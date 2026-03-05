@@ -53,8 +53,8 @@ func TestFileStoreMultipleKeys(t *testing.T) {
 		FallbackDir:   dir,
 	})
 
-	store.Save("key1", []byte(`{"a":1}`))
-	store.Save("key2", []byte(`{"b":2}`))
+	require.NoError(t, store.Save("key1", []byte(`{"a":1}`)))
+	require.NoError(t, store.Save("key2", []byte(`{"b":2}`)))
 
 	d1, _ := store.Load("key1")
 	d2, _ := store.Load("key2")
@@ -62,7 +62,7 @@ func TestFileStoreMultipleKeys(t *testing.T) {
 	assert.JSONEq(t, `{"b":2}`, string(d2))
 
 	// Delete one, other persists
-	store.Delete("key1")
+	require.NoError(t, store.Delete("key1"))
 	_, err := store.Load("key1")
 	assert.Error(t, err)
 	d2, _ = store.Load("key2")
