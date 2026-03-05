@@ -1,5 +1,7 @@
+.DEFAULT_GOAL := check
+
 .PHONY: check test test-race vet lint fmt fmt-check bench check-all \
-       tidy tidy-check vuln secrets security release-check release
+       tidy tidy-check replace-check vuln secrets security release-check release
 
 # Default target: fast checks for inner-loop dev.
 check: fmt-check vet test
@@ -45,6 +47,17 @@ tidy-check:
 	fi; \
 	rm -f go.mod.tidycheck go.sum.tidycheck
 
+# Guard against local replace directives in go.mod
+replace-check:
+	@if grep -q '^[[:space:]]*replace[[:space:]]' go.mod; then \
+		echo "ERROR: go.mod contains replace directives"; \
+		grep '^[[:space:]]*replace[[:space:]]' go.mod; \
+		echo ""; \
+		echo "Remove replace directives before releasing."; \
+		exit 1; \
+	fi
+	@echo "Replace check passed (no local replace directives)"
+
 # --- Security targets ---
 
 # Run vulnerability scanner
@@ -64,7 +77,7 @@ security: lint vuln secrets
 check-all: fmt-check vet lint test-race bench tidy-check
 
 # Full pre-flight for release
-release-check: check-all vuln secrets
+release-check: check-all replace-check vuln secrets
 
 # Cut a release (delegates to scripts/release.sh)
 release:

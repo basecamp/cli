@@ -13,6 +13,8 @@ endif
 # Set to legacy name pattern when doing a rename (e.g. LEGACY_PATTERN ?= oldname|OLDNAME)
 LEGACY_PATTERN ?=
 
+.DEFAULT_GOAL := check
+
 .PHONY: check build test test-race test-e2e vet lint fmt fmt-check bench bench-cpu bench-mem \
 	check-all clean tidy tidy-check check-naming replace-check check-surface check-surface-diff \
 	check-surface-compat vuln secrets security provenance-check release-check release \
