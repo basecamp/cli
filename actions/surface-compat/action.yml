@@ -22,21 +22,26 @@ runs:
   steps:
     - name: Verify inputs
       shell: bash
+      env:
+        INPUT_CLI_BINARY: ${{ inputs.cli-binary }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
       run: |
-        if [ ! -x "${{ inputs.cli-binary }}" ]; then
-          echo "::error::CLI binary not found: ${{ inputs.cli-binary }}"
+        if [ ! -x "$INPUT_CLI_BINARY" ]; then
+          echo "::error::CLI binary not found: $INPUT_CLI_BINARY"
           exit 1
         fi
-        if [ ! -f "${{ inputs.baseline }}" ]; then
-          echo "::error::Baseline file not found: ${{ inputs.baseline }}"
+        if [ ! -f "$INPUT_BASELINE" ]; then
+          echo "::error::Baseline file not found: $INPUT_BASELINE"
           exit 1
         fi
 
     - name: Generate current surface
       shell: bash
+      env:
+        INPUT_CLI_BINARY: ${{ inputs.cli-binary }}
       run: |
         # Walk the CLI command tree and produce surface snapshot
-        BINARY="${{ inputs.cli-binary }}"
+        BINARY="$INPUT_CLI_BINARY"
         ROOT_NAME=$(basename "$BINARY")
 
         walk_commands() {
@@ -72,8 +77,10 @@ runs:
     - name: Diff surfaces
       id: diff
       shell: bash
+      env:
+        INPUT_BASELINE: ${{ inputs.baseline }}
       run: |
-        BASELINE="${{ inputs.baseline }}"
+        BASELINE="$INPUT_BASELINE"
         CURRENT="/tmp/surface-current.txt"
 
         # comm requires sorted input — sort both with consistent locale
