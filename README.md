@@ -51,7 +51,9 @@ Usage in a workflow:
     cli-binary: ./dist/myapp
 ```
 
-## Rubric
+## Standards
+
+### Rubric
 
 [RUBRIC.md](RUBRIC.md) codifies design decisions from `basecamp-cli` into a reusable standard covering:
 
@@ -59,6 +61,14 @@ Usage in a workflow:
 - **Tier 2** — Reliability: surface stability, resilience, configuration
 - **Tier 3** — Agent integration: skills, pagination, observability
 - **Tier 4** — Distribution & ecosystem: builds, testing, shell completion, DX
+
+### Input Conventions
+
+[INPUT-CONVENTIONS.md](INPUT-CONVENTIONS.md) standardizes how content-creation commands accept text input — positional shorthand, stdin piping, short flags, `$EDITOR` fallback — with a resolution chain, disambiguation patterns, and a cross-CLI conformance audit table.
+
+### Makefile Convention
+
+[MAKEFILE-CONVENTION.md](MAKEFILE-CONVENTION.md) standardizes Make targets across all CLI repos.
 
 ## Agent prompts
 
@@ -68,6 +78,7 @@ Reusable agent prompts in `prompts/`:
 |--------|---------|
 | `seed-cli.md` | Bootstrap a new CLI from the seed templates |
 | `close-gap.md` | Close a specific rubric gap in an existing CLI |
+| `close-input-gap.md` | Close a specific input convention gap in a content command |
 
 ## Skills
 
