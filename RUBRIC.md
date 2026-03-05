@@ -131,9 +131,11 @@ Flag and subcommand removals are breaking changes caught by CI. Agents can depen
 |---|-----------|------|-----|-----------|
 | 3A.1 | `SKILL.md` embedded via `go:embed` | Yes | — | `skills/SKILL.md` |
 | 3A.2 | `<cli> skill` prints embedded skill | Yes | — | `internal/commands/skill.go` |
-| 3A.3 | `.claude-plugin/` with plugin.json, hooks, agents | Yes | — | `.claude-plugin/` |
+| 3A.3 | `.claude-plugin/` with plugin.json, hooks, commands | Yes | — | `.claude-plugin/` |
 | 3A.4 | SessionStart hook emits CLI context | Yes | — | `.claude-plugin/hooks/` |
 | 3A.5 | Skill synced to `basecamp/skills` on release | Yes | — | `scripts/sync-skills.sh` |
+| 3A.6 | `setup claude` installs plugin via marketplace | Yes | — | `internal/harness/claude.go`, `internal/commands/setup.go` |
+| 3A.7 | Plugin registered in `basecamp/claude-plugins` marketplace | No | — | `basecamp/claude-plugins` marketplace.json |
 
 ### 3B. Pagination
 
@@ -219,9 +221,9 @@ For the **TUI tool profile**, score only the applicable tiers (1D, 4A, 4B, 4D) a
 |------|-------|-----|
 | T1: Agent Contract | /26 | 26 |
 | T2: Reliability | /16 | 16 |
-| T3: Agent Integration | /11 | 11 |
+| T3: Agent Integration | /13 | 13 |
 | T4: Distribution | /29 | 29 |
-| **Total** | **/82** | **82** |
+| **Total** | **/84** | **84** |
 
 ### Detailed Results
 
@@ -274,6 +276,8 @@ For the **TUI tool profile**, score only the applicable tiers (1D, 4A, 4B, 4D) a
 | 3A.3 | `.claude-plugin/` | | | |
 | 3A.4 | SessionStart hook | | | |
 | 3A.5 | Skill synced on release | | | |
+| 3A.6 | `setup claude` | | | |
+| 3A.7 | Marketplace registration | | | |
 | 3B.1 | `--limit N` | | | |
 | 3B.2 | `--all` | | | |
 | 3B.3 | Truncation notice | | | |

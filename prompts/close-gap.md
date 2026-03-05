@@ -48,3 +48,16 @@ Replace file-only credential storage with `credstore.NewStore()`. Set ServiceNam
 
 ### Adding surface stability (2A.2-3)
 Use the `surface` package to generate snapshots. Commit the baseline. Add the `surface-compat` GitHub Action to CI.
+
+### Adding setup claude (3A.6)
+Create `internal/harness/claude.go` with `ClaudeMarketplaceSource` and `ClaudePluginName`
+constants, plus `DetectClaude`, `FindClaudeBinary`, `IsPluginNeeded`, and `CheckClaudePlugin`
+functions. Add a `setup claude` subcommand that runs marketplace add (best-effort) then
+plugin install, with verify-after-install. Wire into the main setup wizard and add
+breadcrumb suggestions via `harness.IsPluginNeeded()`.
+Reference: github.com/basecamp/basecamp-cli/internal/harness/claude.go and wizard.go.
+
+### Marketplace registration (3A.7)
+Manual, external follow-up. Add a plugin entry to `basecamp/claude-plugins`
+marketplace.json with source pointing at `basecamp/<app>-cli`. This is a one-time
+step in the marketplace repo, not automatable from within the CLI repo.

@@ -18,6 +18,7 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    │   ├── auth/
    │   ├── commands/
    │   ├── config/
+   │   ├── harness/
    │   └── output/
    ├── e2e/
    ├── skills/
@@ -83,6 +84,7 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    - `seed/internal/commands/doctor.go.tmpl` → `internal/commands/doctor.go`
    - `seed/internal/commands/setup.go.tmpl` → `internal/commands/setup.go`
    - `seed/internal/commands/skill.go.tmpl` → `internal/commands/skill.go`
+   - `seed/internal/harness/claude.go.tmpl` → `internal/harness/claude.go` (fill in app name)
 
    **Skills & plugin:**
    - `seed/.claude-plugin/` → `.claude-plugin/` (customize)
@@ -157,6 +159,12 @@ After the repo is pushed to GitHub:
    ```
    pip install pre-commit && pre-commit install --install-hooks
    ```
+
+5. **Claude plugin marketplace** — register in `basecamp/claude-plugins`:
+   - Clone `basecamp/claude-plugins`
+   - Add entry to `.claude-plugin/marketplace.json` plugins array:
+     `{"name": "<app>", "description": "...", "source": {"source": "github", "repo": "basecamp/<app>-cli"}, "category": "productivity"}`
+   - PR and merge
 
 ## Auth Model Configuration
 

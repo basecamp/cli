@@ -69,6 +69,16 @@ Run this skill in the root of a Go CLI repository to produce a gap report.
 - [ ] Check for --limit, --all flags on list commands
 - [ ] Check for --verbose, APP_DEBUG
 
+#### 3A.6: setup claude
+- [ ] Check for `internal/harness/` directory with Claude detection code
+- [ ] Run `<cli> setup claude --help` — subcommand exists
+- [ ] Grep for `ClaudeMarketplaceSource` or `basecamp/claude-plugins` in harness code
+
+#### 3A.7: Marketplace registration (manual, external)
+- [ ] This criterion requires checking the external `basecamp/claude-plugins` repo
+- [ ] If not locally available, flag as "cannot verify — check basecamp/claude-plugins manually"
+- [ ] If available: verify `.claude-plugin/marketplace.json` contains an entry with `"name": "<cli>"`
+
 ### 5. Check Tier 4: Distribution & Ecosystem
 
 - [ ] Check for .goreleaser.yaml
@@ -88,9 +98,9 @@ Produce a scorecard:
 |------|-------|-----|
 | T1: Agent Contract | X/26 | 26 |
 | T2: Reliability | X/16 | 16 |
-| T3: Agent Integration | X/11 | 11 |
+| T3: Agent Integration | X/13 | 13 |
 | T4: Distribution | X/29 | 29 |
-| **Total** | **X/82** | **82** |
+| **Total** | **X/84** | **84** |
 
 ### Critical Gaps
 1. [Most impactful gap]
