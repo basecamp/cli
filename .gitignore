@@ -1,0 +1,16 @@
+# Test and profiling output
+coverage.out
+*.prof
+*.test
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
