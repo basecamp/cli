@@ -60,6 +60,33 @@ notarize:
           key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
           key: "{{.Env.MACOS_NOTARY_KEY}}"
 
+release:
+  draft: false
+  prerelease: auto
+  name_template: "{{ .ProjectName }} v{{ .Version }}"
+  header: |
+    {{ if .Env.RELEASE_CHANGELOG }}{{ .Env.RELEASE_CHANGELOG }}
+
+    ---
+    {{ end }}
+    ### Install
+
+    ```
+    brew install basecamp/tap/{{ .ProjectName }}
+    ```
+
+    Or download a binary from the assets below.
+
+brews:
+  - repository:
+      owner: basecamp
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/basecamp/{{ .ProjectName }}"
+    description: "{{ .ProjectName }} CLI"
+    license: MIT
+    skip_upload: auto
+
 scoops:
   - repository:
       owner: basecamp
@@ -72,9 +99,4 @@ scoops:
 # See: https://wiki.archlinux.org/title/AUR_submission_guidelines
 
 changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
+  use: github-native

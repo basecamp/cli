@@ -168,6 +168,7 @@ Flag and subcommand removals are breaking changes caught by CI. Agents can depen
 | 4A.7 | macOS notarization | Yes | — | `.goreleaser.yml` |
 | 4A.8 | Scoop (Windows) | Yes | — | `.goreleaser.yml` |
 | 4A.9 | AUR (Arch Linux) | Yes | — | `scripts/publish-aur.sh` |
+| 4A.10 | GitHub Release with categorized changelog | Yes | — | `.github/release.yml`, `.goreleaser.yml` |
 
 ### 4B. Testing
 
@@ -219,8 +220,8 @@ For the **TUI tool profile**, score only the applicable tiers (1D, 4A, 4B, 4D) a
 | T1: Agent Contract | /26 | 26 |
 | T2: Reliability | /16 | 16 |
 | T3: Agent Integration | /11 | 11 |
-| T4: Distribution | /28 | 28 |
-| **Total** | **/81** | **81** |
+| T4: Distribution | /29 | 29 |
+| **Total** | **/82** | **82** |
 
 ### Detailed Results
 
@@ -288,6 +289,7 @@ For the **TUI tool profile**, score only the applicable tiers (1D, 4A, 4B, 4D) a
 | 4A.7 | macOS notarization | | | |
 | 4A.8 | Scoop (Windows) | | | |
 | 4A.9 | AUR (Arch Linux) | | | |
+| 4A.10 | GitHub Release with categorized changelog | | | |
 | 4B.1 | Unit tests | | | |
 | 4B.2 | E2E tests | | | |
 | 4B.3 | E2E in CI | | | |
