@@ -36,7 +36,7 @@ via `go get github.com/basecamp/cli@v0.x.y`.
 
 - On `main` branch with clean, synced working tree
 - `make release-check` passes
-- Go toolchain matches `go.mod` (currently Go 1.24+)
+- Go toolchain matches `.mise.toml` (currently Go 1.26)
 
 ### Toolchain reset
 
