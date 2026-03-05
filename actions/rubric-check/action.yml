@@ -26,18 +26,23 @@ runs:
   steps:
     - name: Verify binary exists
       shell: bash
+      env:
+        INPUT_CLI_BINARY: ${{ inputs.cli-binary }}
       run: |
-        if [ ! -x "${{ inputs.cli-binary }}" ]; then
-          echo "::error::CLI binary not found or not executable: ${{ inputs.cli-binary }}"
+        if [ ! -x "$INPUT_CLI_BINARY" ]; then
+          echo "::error::CLI binary not found or not executable: $INPUT_CLI_BINARY"
           exit 1
         fi
 
     - name: Score rubric
       id: score
       shell: bash
+      env:
+        INPUT_CLI_BINARY: ${{ inputs.cli-binary }}
+        INPUT_PROFILE: ${{ inputs.profile }}
       run: |
-        BINARY="${{ inputs.cli-binary }}"
-        PROFILE="${{ inputs.profile }}"
+        BINARY="$INPUT_CLI_BINARY"
+        PROFILE="$INPUT_PROFILE"
         PASSED=0
         FAILED=0
         TOTAL=0
