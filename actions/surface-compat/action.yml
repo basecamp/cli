@@ -27,11 +27,11 @@ runs:
         INPUT_BASELINE: ${{ inputs.baseline }}
       run: |
         if [ ! -x "$INPUT_CLI_BINARY" ]; then
-          echo "::error::CLI binary not found: $INPUT_CLI_BINARY"
+          echo "ERROR: CLI binary not found: $INPUT_CLI_BINARY" >&2
           exit 1
         fi
         if [ ! -f "$INPUT_BASELINE" ]; then
-          echo "::error::Baseline file not found: $INPUT_BASELINE"
+          echo "ERROR: Baseline file not found: $INPUT_BASELINE" >&2
           exit 1
         fi
 
@@ -53,7 +53,7 @@ runs:
 
           local json
           json=$("$BINARY" "${args[@]}" --help --agent 2>/dev/null) || {
-            echo "::warning::--help --agent failed for: $cmd_path"
+            echo "WARNING: --help --agent failed for: $cmd_path" >&2
             return 0
           }
 

@@ -30,7 +30,7 @@ runs:
         INPUT_CLI_BINARY: ${{ inputs.cli-binary }}
       run: |
         if [ ! -x "$INPUT_CLI_BINARY" ]; then
-          echo "::error::CLI binary not found or not executable: $INPUT_CLI_BINARY"
+          echo "ERROR: CLI binary not found or not executable: $INPUT_CLI_BINARY" >&2
           exit 1
         fi
 
