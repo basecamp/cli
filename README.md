@@ -81,4 +81,4 @@ make check-all    # full suite: fmt-check + vet + lint + test-race + bench
 
 ## License
 
-Copyright 2025 37signals, LLC. Released under the [MIT License](MIT-LICENSE).
+Copyright 2025 37signals LLC. Released under the [MIT License](MIT-LICENSE).
