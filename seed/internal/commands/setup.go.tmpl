@@ -48,3 +48,70 @@ package commands
 //       AccountName string `json:"account_name,omitempty"`
 //       ConfigScope string `json:"config_scope,omitempty"` // "global", "local"
 //   }
+
+// Subcommand: {{.Name}} setup claude
+//
+// Dedicated Claude Code plugin installation. Called by the main wizard
+// as step 6, or run standalone by the user.
+//
+// Pattern:
+//
+//   cmd.AddCommand(newSetupClaudeCmd())
+//
+//   func newSetupClaudeCmd() *cobra.Command {
+//       return &cobra.Command{
+//           Use:   "claude",
+//           Short: "Install the {{.Name}} plugin for Claude Code",
+//           RunE:  runSetupClaude,
+//       }
+//   }
+//
+//   func runSetupClaude(cmd *cobra.Command, args []string) error {
+//       detected := harness.DetectClaude() || harness.FindClaudeBinary() != ""
+//
+//       // Attempt install if Claude is present and plugin is missing
+//       if detected {
+//           if harness.CheckClaudePlugin().Status != "pass" {
+//               claudePath := harness.FindClaudeBinary()
+//               if claudePath != "" {
+//                   ctx := cmd.Context()
+//                   // Step 1: Register marketplace (best-effort)
+//                   mktCmd := exec.CommandContext(ctx, claudePath,
+//                       "plugin", "marketplace", "add", harness.ClaudeMarketplaceSource)
+//                   mktCmd.Stderr = cmd.ErrOrStderr()
+//                   _ = mktCmd.Run()
+//                   // Step 2: Install plugin
+//                   installCmd := exec.CommandContext(ctx, claudePath,
+//                       "plugin", "install", harness.ClaudePluginName)
+//                   installCmd.Stdout = cmd.OutOrStdout()
+//                   installCmd.Stderr = cmd.ErrOrStderr()
+//                   _ = installCmd.Run()
+//               }
+//               // If claudePath == "", show manual install hint
+//           }
+//       }
+//
+//       // Always return a structured envelope
+//       installed := detected && harness.CheckClaudePlugin().Status == "pass"
+//       summary := "Claude Code plugin installed"
+//       if !detected {
+//           summary = "Claude Code not detected"
+//       } else if !installed {
+//           summary = "Claude Code plugin not installed"
+//       }
+//       return app.OK(map[string]any{
+//           "plugin_installed": installed,
+//           "claude_detected":  detected,
+//       }, output.WithSummary(summary))
+//   }
+//
+// Other commands suggest setup claude via breadcrumbs when plugin is missing:
+//
+//   if harness.IsPluginNeeded() {
+//       breadcrumbs = append(breadcrumbs, Breadcrumb{
+//           Action: "setup_claude", Cmd: "{{.Name}} setup claude",
+//           Description: "Connect Claude to {{.Name}}",
+//       })
+//   }
+//
+// Reference: github.com/basecamp/basecamp-cli/internal/commands/wizard.go

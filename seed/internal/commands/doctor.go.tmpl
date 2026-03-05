@@ -16,7 +16,8 @@ package commands
 //   6. Account Access   — authenticated user can list resources
 //   7. Cache            — cache directory exists, size reasonable
 //   8. Shell Completion — completion script installed for current shell
-//   9. Claude Plugin    — .claude-plugin/ installed, hooks present
+//   9. Claude Plugin    — harness.CheckClaudePlugin() verifies marketplace install
+//                         Hint on failure: "Run: {{.Name}} setup claude"
 //
 // Implementation pattern:
 //

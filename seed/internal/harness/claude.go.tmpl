@@ -1,0 +1,40 @@
+package harness
+
+// Claude Code plugin detection and marketplace install utilities.
+//
+// Constants:
+//
+//   const ClaudeMarketplaceSource = "basecamp/claude-plugins"
+//   const ClaudePluginName = "{{.Name}}"
+//
+// Detection:
+//
+//   func DetectClaude() bool
+//       Check if ~/.claude/ directory exists.
+//
+//   func FindClaudeBinary() string
+//       exec.LookPath("claude"), fallback ~/.local/bin/claude.
+//       Returns "" if not found.
+//
+//   func IsPluginNeeded() bool
+//       DetectClaude() && CheckClaudePlugin().Status != "pass"
+//
+// Plugin check:
+//
+//   func CheckClaudePlugin() *StatusCheck
+//       Read ~/.claude/plugins/installed_plugins.json.
+//       Handle multiple JSON shapes resilient to schema changes:
+//         1. Try as []map[string]any — match name/package/id fields
+//         2. Try as map[string]any — match keys
+//         3. Fallback: raw string search
+//       Match on "{{.Name}}" or "{{.Name}}@{{.Name}}".
+//       Returns StatusCheck{Name, Status, Message, Hint}.
+//
+//   type StatusCheck struct {
+//       Name    string `json:"name"`
+//       Status  string `json:"status"`   // "pass", "fail", "warn"
+//       Message string `json:"message"`
+//       Hint    string `json:"hint,omitempty"`
+//   }
+//
+// Reference: github.com/basecamp/basecamp-cli/internal/harness/claude.go
