@@ -1,7 +1,9 @@
 changelog:
   exclude:
+    labels:
+      - dependencies
+      - github-actions
     authors:
-      - dependabot
       - dependabot[bot]
   categories:
     - title: Breaking Changes

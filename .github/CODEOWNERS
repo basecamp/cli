@@ -1,1 +1,5 @@
-* @basecamp/cli
+* @basecamp/sip
+actions/              @basecamp/sip
+seed/                 @basecamp/sip
+.github/workflows/    @basecamp/sip
+scripts/              @basecamp/sip
