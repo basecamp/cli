@@ -1,26 +1,28 @@
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+
 linters:
   enable:
     - govet
     - errcheck
     - staticcheck
     - unused
-    - gosimple
     - ineffassign
     - misspell
     - gocritic
-    - gofmt
-
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-  errcheck:
-    check-blank: true
-  misspell:
-    locale: US
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    errcheck:
+      check-blank: false
+    misspell:
+      locale: US
 
 issues:
-  exclude-use-default: false
   max-issues-per-linter: 0
   max-same-issues: 0
