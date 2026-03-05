@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  security-events: write
+  pull-requests: read
+
+jobs:
+  security:
+    name: Security
+    uses: ./.github/workflows/security.yml
+    secrets: inherit
+
+  test:
+    name: Test gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
+        with:
+          version: v2.9.0
+          install-only: true
+
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)" || (echo "Run 'gofmt -w .' to fix formatting" && gofmt -l . && exit 1)
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint
+        run: golangci-lint run
+
+      - name: Check go.mod tidiness
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Test
+        run: go test -v ./...
+
+      - name: Test (race detector)
+        run: go test -race -count=1 ./...
+
+      - name: Govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Verify tag is on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+            echo "Error: tag is not on the main branch"
+            exit 1
+          fi
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+            echo "Error: tag is not on the main branch"
+            exit 1
+          fi
+
+      - name: Confirm module availability
+        run: echo "Tagged Go module ${{ github.ref_name }} published via module proxy"
+
+  sync-skills:
+    name: Sync skills
+    runs-on: ubuntu-latest
+    needs: [publish]
+    if: vars.SKILLS_APP_ID != ''
+    continue-on-error: true
+    timeout-minutes: 5
+    concurrency:
+      group: sync-skills
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      HAS_SKILLS_KEY: ${{ secrets.SKILLS_APP_PRIVATE_KEY && 'true' || '' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check prerequisites
+        id: check
+        run: |
+          if [ -z "$HAS_SKILLS_KEY" ]; then
+            echo "::warning::SKILLS_APP_PRIVATE_KEY secret is not set — skipping skills sync"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif ! ls skills/*/SKILL.md >/dev/null 2>&1; then
+            echo "No skill files found — skipping sync"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate token
+        if: steps.check.outputs.ready == 'true'
+        id: skills-token
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        with:
+          app-id: ${{ vars.SKILLS_APP_ID }}
+          private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
+          owner: basecamp
+          repositories: skills
+
+      - name: Sync skills
+        if: steps.check.outputs.ready == 'true'
+        run: CLI_NAME=cli SKILLS_TOKEN=${{ steps.skills-token.outputs.token }} RELEASE_TAG=${{ github.ref_name }} SOURCE_SHA=${{ github.sha }} scripts/sync-skills.sh
