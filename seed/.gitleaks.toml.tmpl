@@ -1,0 +1,20 @@
+# Gitleaks configuration for {{.Name}} CLI
+# https://github.com/gitleaks/gitleaks#configuration
+
+title = "{{.Name}} CLI gitleaks config"
+
+# Allowlist specific false positives
+[allowlist]
+  description = "Known safe patterns"
+
+  # OAuth client secrets are public by design (they're embedded in CLI binaries)
+  # See: https://www.oauth.com/oauth2-servers/mobile-and-native-apps/
+  regexTarget = "match"
+  regexes = [
+    # Add app-specific false positive patterns here
+  ]
+
+  # Test files with fake/example tokens
+  paths = [
+    '''_test\.go$''',
+  ]

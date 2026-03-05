@@ -1,0 +1,100 @@
+# Releasing
+
+## Quick release
+
+```bash
+make release VERSION=0.1.0
+```
+
+## Dry run
+
+```bash
+make release VERSION=0.1.0 DRY_RUN=1
+```
+
+## What happens
+
+1. Validates semver format, main branch, clean tree, synced with remote
+2. Checks for `replace` directives in go.mod
+3. Runs `make release-check` (quality checks, vuln scan, replace-check, race-test, surface compat)
+4. Creates annotated tag `v$VERSION` and pushes to origin
+5. GitHub Actions [release workflow](.github/workflows/release.yml) runs:
+   - Security scan + full test suite + CLI surface compatibility check
+   - Collects PGO profile from benchmarks
+   - Builds binaries for all platforms (darwin, linux, windows, freebsd, openbsd x amd64/arm64)
+   - Signs checksums with cosign (keyless via Sigstore OIDC)
+   - Generates SBOM for supply chain transparency
+   - Optional: AI changelog, macOS notarization, Homebrew tap, AUR publish
+
+## Versioning
+
+Pre-1.0: minor bumps for features, patch bumps for fixes. Prerelease tags
+(e.g. `0.1.0-rc.1`) are marked as prereleases automatically by GoReleaser.
+
+## Requirements
+
+- On `main` branch with clean, synced working tree
+- No `replace` directives in go.mod
+- `make release-check` passes (includes check, replace-check, vuln scan, race-test, surface compat)
+
+## Feature toggle matrix
+
+Every optional feature is gated so the release workflow works out of the box
+with zero configuration, progressively unlocking capabilities as secrets and
+vars are added.
+
+| Feature | Guard | Required secrets/vars | Default |
+|---------|-------|----------------------|---------|
+| Core release (GoReleaser) | always | `GITHUB_TOKEN` (automatic) | on |
+| Cosign signing | always (keyless) | none (OIDC) | on |
+| SBOM generation | always | none | on |
+| Security scan | always | none | on |
+| Test gate | always | none | on |
+| PGO profile | always (fallback) | none | on |
+| AI changelog | `vars.ENABLE_AI_CHANGELOG == 'true'` | `models: read` permission | off |
+| macOS notarization | `secrets.MACOS_SIGN_P12 != ''` | 5 macOS secrets | off |
+| Homebrew tap | `secrets.HOMEBREW_TAP_TOKEN != ''` | `HOMEBREW_TAP_TOKEN` | off |
+| AUR publish | `secrets.AUR_SSH_KEY != ''` | `AUR_SSH_KEY` | off |
+| Skills sync | guard combo | `SKILLS_APP_ID` + `SKILLS_APP_PRIVATE_KEY` | off |
+| Private SDK access | guard combo | `RELEASE_CLIENT_ID` + `RELEASE_APP_PRIVATE_KEY` | off |
+
+## CI secrets
+
+**Repository secrets** (Settings > Secrets and variables > Actions):
+
+| Secret | Purpose |
+|--------|---------|
+| `RELEASE_CLIENT_ID` (var) | GitHub App ID for release bot |
+| `RELEASE_APP_PRIVATE_KEY` | GitHub App private key |
+| `HOMEBREW_TAP_TOKEN` | PAT for Homebrew tap repo push (optional) |
+| `AUR_SSH_KEY` | SSH private key for AUR push (optional) |
+| `SKILLS_APP_ID` (var) | GitHub App ID for skills sync (optional) |
+| `SKILLS_APP_PRIVATE_KEY` | GitHub App private key for skills sync (optional) |
+
+**Environment secrets** (`release` environment — Settings > Environments):
+
+| Secret | Purpose |
+|--------|---------|
+| `MACOS_SIGN_P12` | Base64-encoded Developer ID Application certificate (.p12) |
+| `MACOS_SIGN_PASSWORD` | .p12 unlock password |
+| `MACOS_NOTARY_KEY` | Base64-encoded App Store Connect API key (.p8) |
+| `MACOS_NOTARY_KEY_ID` | App Store Connect API key ID (10 characters) |
+| `MACOS_NOTARY_ISSUER_ID` | App Store Connect issuer UUID |
+
+## AUR setup (one-time)
+
+1. Create an account at https://aur.archlinux.org
+2. Register the `{{.Name}}-cli` package
+3. Generate an SSH keypair: `ssh-keygen -t ed25519 -f aur_key -C "{{.Name}}-cli AUR"`
+4. Add the public key to your AUR profile
+5. Add the private key as `AUR_SSH_KEY` in GitHub Actions secrets
+
+## Distribution channels
+
+| Channel | Location | Updated by |
+|---------|----------|------------|
+| GitHub Releases | [{{.OrgName}}/{{.RepoName}}](https://github.com/{{.OrgName}}/{{.RepoName}}/releases) | GoReleaser |
+| Homebrew cask | `{{.OrgName}}/homebrew-tap` Casks/ | GoReleaser |
+| Scoop | `{{.OrgName}}/homebrew-tap` root | GoReleaser |
+| AUR | `{{.Name}}-cli` | GoReleaser |
+| go install | `go install github.com/{{.OrgName}}/{{.RepoName}}/cmd/{{.Name}}@latest` | Go module proxy |
