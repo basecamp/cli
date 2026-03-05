@@ -1,0 +1,24 @@
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**']
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*_test.go']
+docs:
+  - changed-files:
+      - any-glob-to-any-file: ['*.md', 'docs/**']
+deps:
+  - changed-files:
+      - any-glob-to-any-file: ['go.mod', 'go.sum']
+skills:
+  - changed-files:
+      - any-glob-to-any-file: ['skills/**']
+seed:
+  - changed-files:
+      - any-glob-to-any-file: ['seed/**']
+actions:
+  - changed-files:
+      - any-glob-to-any-file: ['actions/**']
+prompts:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/prompts/**', 'prompts/**']
