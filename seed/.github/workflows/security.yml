@@ -9,6 +9,9 @@ on:
     # Weekly scan on Monday at 6am UTC
     - cron: '0 6 * * 1'
   workflow_call:  # Allow release.yml to invoke the full security suite
+    secrets:
+      RELEASE_APP_PRIVATE_KEY:
+        required: false
   workflow_dispatch:
 
 permissions:
@@ -83,7 +86,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Run gosec
         run: |
@@ -131,7 +136,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4

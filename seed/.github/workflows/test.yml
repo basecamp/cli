@@ -38,7 +38,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Check module tidiness
         run: make tidy-check
@@ -78,7 +80,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
@@ -107,7 +111,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Run govulncheck
         # @latest intentional — pinning delays scanning improvements and
@@ -141,7 +147,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Run tests with race detector
         run: go test -race -v ./...
@@ -171,7 +179,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Cache BATS
         id: cache-bats
@@ -216,7 +226,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Build and snapshot PR surface
         run: |
@@ -280,7 +292,9 @@ jobs:
 
       - name: Configure git for private modules
         if: steps.filter.outputs.bench == 'true' && steps.app-token.outputs.token != ''
-        run: git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "https://github.com/"
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Run benchmarks
         if: steps.filter.outputs.bench == 'true'

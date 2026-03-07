@@ -5,17 +5,10 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-  security-events: write
-  pull-requests: read
-  models: read
-
 jobs:
   security:
     name: Security
     uses: ./.github/workflows/security.yml
-    secrets: inherit
 
   test:
     name: Test gate
@@ -63,9 +56,11 @@ jobs:
           govulncheck ./...
 
       - name: Verify tag is on main
+        env:
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           git fetch origin main
-          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+          if ! git merge-base --is-ancestor "$COMMIT_SHA" origin/main; then
             echo "Error: tag is not on the main branch"
             exit 1
           fi
@@ -83,9 +78,11 @@ jobs:
           fetch-depth: 0
 
       - name: Verify tag is on main
+        env:
+          COMMIT_SHA: ${{ github.sha }}
         run: |
           git fetch origin main
-          if ! git merge-base --is-ancestor "${{ github.sha }}" origin/main; then
+          if ! git merge-base --is-ancestor "$COMMIT_SHA" origin/main; then
             echo "Error: tag is not on the main branch"
             exit 1
           fi
@@ -142,35 +139,23 @@ jobs:
         with:
           prompt-file: /tmp/prompt.yml
 
-      - name: Set changelog env
-        run: |
-          RESPONSE_FILE="${{ steps.ai-changelog.outputs.response-file }}"
-          if [ -n "$RESPONSE_FILE" ] && [ -f "$RESPONSE_FILE" ]; then
-            # Strip markdown code fences that AI models wrap around responses
-            sed -i '/^```\(markdown\)\?$/d' "$RESPONSE_FILE"
-            DELIM="CHANGELOG_DELIM_$(openssl rand -hex 8)"
-            {
-              echo "RELEASE_CHANGELOG<<${DELIM}"
-              cat "$RESPONSE_FILE"
-              echo ""
-              echo "${DELIM}"
-            } >> $GITHUB_ENV
-          else
-            echo "RELEASE_CHANGELOG=" >> $GITHUB_ENV
-          fi
-
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGELOG_FILE: ${{ steps.ai-changelog.outputs.response-file }}
+          TAG: ${{ github.ref_name }}
         run: |
-          TAG="${{ github.ref_name }}"
           NOTES=""
-          if [ -n "$RELEASE_CHANGELOG" ]; then
-            NOTES="${RELEASE_CHANGELOG}
+          if [ -n "$CHANGELOG_FILE" ] && [ -f "$CHANGELOG_FILE" ]; then
+            sed -i '/^```\(markdown\)\?$/d' "$CHANGELOG_FILE"
+            CHANGELOG=$(cat "$CHANGELOG_FILE")
+            if [ -n "$CHANGELOG" ]; then
+              NOTES="${CHANGELOG}
 
           ---
 
           "
+            fi
           fi
           NOTES="${NOTES}### Install
 
@@ -197,6 +182,7 @@ jobs:
     if: vars.SKILLS_APP_ID != ''
     continue-on-error: true
     timeout-minutes: 5
+    environment: release
     concurrency:
       group: sync-skills
       cancel-in-progress: false
@@ -232,4 +218,9 @@ jobs:
 
       - name: Sync skills
         if: steps.check.outputs.ready == 'true'
-        run: CLI_NAME=cli SKILLS_TOKEN=${{ steps.skills-token.outputs.token }} RELEASE_TAG=${{ github.ref_name }} SOURCE_SHA=${{ github.sha }} scripts/sync-skills.sh
+        env:
+          CLI_NAME: cli
+          SKILLS_TOKEN: ${{ steps.skills-token.outputs.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: scripts/sync-skills.sh
