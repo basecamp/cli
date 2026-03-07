@@ -5,9 +5,14 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   id-token: write
+  attestations: write
   security-events: write
   pull-requests: read
   models: read
@@ -286,7 +291,7 @@ jobs:
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
         with:
           distribution: goreleaser
-          version: '~> v2'
+          version: 'v2.14.1'
           install-only: true
 
       - name: Run GoReleaser
@@ -306,6 +311,11 @@ jobs:
           fi
           export RELEASE_CHANGELOG
           goreleaser release --clean
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-checksums-file: ./dist/checksums.txt
 
       # Configure secrets.AUR_SSH_KEY to enable Arch Linux AUR publishing
       - name: Publish to AUR
