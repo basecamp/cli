@@ -31,8 +31,13 @@ jobs:
     with:
       prompt-file: .github/prompts/detect-breaking.prompt.yml
       file-patterns: |
-        internal/commands/*.go
-        cmd/*/main.go
+        credstore/*.go
+        editor/*.go
+        oauthcallback/*.go
+        output/*.go
+        pkce/*.go
+        profile/*.go
+        surface/*.go
     permissions:
       contents: read
       issues: write
