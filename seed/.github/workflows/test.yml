@@ -7,30 +7,27 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
           # repositories: <private-module>
 
@@ -63,21 +60,17 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -99,20 +92,16 @@ jobs:
   security:
     name: Security
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -136,23 +125,19 @@ jobs:
   race-check:
     name: Race Detection
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -172,23 +157,19 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -204,7 +185,7 @@ jobs:
 
       - name: Cache BATS
         id: cache-bats
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: /usr/local/libexec/bats-core
           key: bats-1.11.0
@@ -221,8 +202,6 @@ jobs:
   cli-surface:
     name: CLI Surface Check
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
@@ -230,15 +209,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -277,8 +255,6 @@ jobs:
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     continue-on-error: true
     env:
@@ -288,15 +264,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 2
-          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Check for benchmark-relevant changes
@@ -327,7 +302,7 @@ jobs:
 
       - name: Download previous benchmark baseline
         if: steps.filter.outputs.bench == 'true'
-        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: benchmarks-baseline.txt
           key: benchmarks-baseline-${{ github.sha }}
@@ -361,7 +336,7 @@ jobs:
 
       - name: Cache benchmark baseline
         if: steps.filter.outputs.bench == 'true'
-        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: benchmarks-baseline.txt
           key: benchmarks-baseline-${{ github.sha }}

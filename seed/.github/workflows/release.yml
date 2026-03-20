@@ -9,7 +9,13 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-permissions: {}
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+  security-events: write
+  pull-requests: read
+  models: read
 
 jobs:
   security:
@@ -17,10 +23,6 @@ jobs:
     uses: ./.github/workflows/security.yml
     secrets:
       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-    permissions:
-      contents: read
-      security-events: write
-      pull-requests: read
 
   test:
     name: Test before release
@@ -34,21 +36,20 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- release workflow needs private module access; environment protection would block tag-triggered releases
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -66,7 +67,7 @@ jobs:
 
       - name: Cache BATS
         id: cache-bats
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3 # zizmor: ignore[cache-poisoning] -- cache key is a static version string, not attacker-controllable
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
         with:
           path: /usr/local/libexec/bats-core
           key: bats-1.11.0
@@ -137,21 +138,20 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY for private modules + Homebrew tap
       - name: Generate token for private module and tap access
         if: vars.RELEASE_CLIENT_ID != ''
         id: sdk-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- release workflow needs private module access; environment protection would block tag-triggered releases
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
         with:
           go-version-file: 'go.mod'
 
@@ -197,7 +197,7 @@ jobs:
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0.23.0
+        uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0
 
       # Configure vars.ENABLE_AI_CHANGELOG=true plus models:read permission to enable AI changelog
       - name: Build changelog context
@@ -351,8 +351,6 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Check for skill files
         id: check-skills
@@ -367,10 +365,10 @@ jobs:
       - name: Generate token for skills repo
         if: steps.check-skills.outputs.found == 'true'
         id: skills-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.SKILLS_APP_ID }}
-          private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- skills sync needs app credentials; environment protection would block tag-triggered releases
+          private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
           owner: basecamp
           repositories: skills
 

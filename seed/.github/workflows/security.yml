@@ -14,19 +14,19 @@ on:
         required: false
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
 
 jobs:
   secrets:
     name: Secret Scanning
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Install gitleaks
         run: |
@@ -39,14 +39,9 @@ jobs:
   trivy:
     name: Trivy Security Scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Run Trivy vulnerability scanner (filesystem)
         uses: aquasecurity/trivy-action@e368e328979b113139d6f9068e03accaed98a518 # 0.34.1
@@ -61,7 +56,7 @@ jobs:
           version: 'v0.69.3'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
+        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4
         if: always()
         continue-on-error: true  # Requires GitHub Advanced Security
         with:
@@ -70,23 +65,18 @@ jobs:
   gosec:
     name: Go Security Checker
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -106,7 +96,7 @@ jobs:
           gosec -no-fail -fmt sarif -out gosec-results.sarif ./...
 
       - name: Upload gosec scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
+        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4
         if: always()
         continue-on-error: true  # Requires GitHub Advanced Security
         with:
@@ -117,35 +107,26 @@ jobs:
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     if: github.event_name == 'pull_request'
     continue-on-error: true  # Requires GitHub Advanced Security (not available on all plans)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
-      - uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4.8.3
+      - uses: actions/dependency-review-action@05fe4576374b728f0c523d6a13d64c25081e0803 # v4
 
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module access needed in PR CI runs; environment protection would block CI
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: basecamp
 
       - name: Set up Go
@@ -160,7 +141,7 @@ jobs:
         run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
+        uses: github/codeql-action/init@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4
         with:
           languages: go
           build-mode: manual
@@ -172,14 +153,14 @@ jobs:
         run: go build ./...
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
+        uses: github/codeql-action/analyze@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4
         with:
           category: codeql-go
           upload: never
           output: sarif-results
 
       - name: Upload SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
+        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4
         continue-on-error: true  # Requires GitHub Advanced Security
         with:
           sarif_file: sarif-results

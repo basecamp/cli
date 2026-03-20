@@ -1,27 +1,24 @@
 name: Classify PR
 
 on:
-  pull_request_target: # zizmor: ignore[dangerous-triggers] -- required for write access to PRs from forks; workflow only checks out base branch and uses gh CLI for PR data, no PR code is executed
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 concurrency:
   group: classify-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
+  issues: write
+  models: read
+  pull-requests: write
 
 jobs:
   classify:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      models: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Build prompt
         env:
@@ -103,15 +100,8 @@ jobs:
 
   breaking:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      models: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
 
       - name: Build prompt
         id: cmd-diff
