@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := check
 
-.PHONY: check test test-race vet lint fmt fmt-check bench check-all \
+.PHONY: check test test-race vet lint lint-actions fmt fmt-check bench check-all \
        tidy tidy-check replace-check vuln secrets security release-check release
 
 # Default target: fast checks for inner-loop dev.
@@ -17,6 +17,10 @@ vet:
 
 lint:
 	golangci-lint run
+
+lint-actions:
+	actionlint
+	zizmor .
 
 fmt:
 	gofmt -w .
@@ -74,7 +78,7 @@ secrets:
 security: lint vuln secrets
 
 # Full suite: everything CI runs.
-check-all: fmt-check vet lint test-race bench tidy-check
+check-all: fmt-check vet lint lint-actions test-race bench tidy-check
 
 # Full pre-flight for release
 release-check: check-all replace-check vuln secrets
