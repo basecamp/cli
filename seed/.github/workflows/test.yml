@@ -7,13 +7,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
@@ -62,6 +63,8 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -96,6 +99,8 @@ jobs:
   security:
     name: Security
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -131,6 +136,8 @@ jobs:
   race-check:
     name: Race Detection
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
@@ -165,6 +172,8 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
@@ -212,6 +221,8 @@ jobs:
   cli-surface:
     name: CLI Surface Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       APPNAME_NO_KEYRING: "1"
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
@@ -266,6 +277,8 @@ jobs:
   benchmarks:
     name: Benchmarks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     continue-on-error: true
     env:
