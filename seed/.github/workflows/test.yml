@@ -19,6 +19,8 @@ jobs:
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
       - name: Generate token for private module access
@@ -62,6 +64,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
       - name: Generate token for private module access
@@ -94,6 +98,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
@@ -130,6 +136,8 @@ jobs:
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
@@ -162,6 +170,8 @@ jobs:
       # Uncomment for private module access: GOPRIVATE: github.com/basecamp/<private-module>
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
@@ -209,6 +219,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
@@ -264,6 +275,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 2
+          persist-credentials: false
 
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
