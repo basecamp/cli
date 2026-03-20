@@ -2,14 +2,15 @@ name: Dependabot auto-merge
 
 on: pull_request
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   auto-merge:
     name: Auto-merge
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]' # zizmor: ignore[bot-conditions] -- dual check: actor validates current trigger, user.login validates PR origin
     steps:
       - uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
