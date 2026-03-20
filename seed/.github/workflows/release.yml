@@ -34,6 +34,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY to enable private module access
       - name: Generate token for private module access
@@ -136,6 +137,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # Configure vars.RELEASE_CLIENT_ID and secrets.RELEASE_APP_PRIVATE_KEY for private modules + Homebrew tap
       - name: Generate token for private module and tap access
@@ -349,6 +351,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Check for skill files
         id: check-skills
