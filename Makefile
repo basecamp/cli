@@ -73,8 +73,13 @@ secrets:
 # Run all security checks
 security: lint vuln secrets
 
+# Lint GitHub Actions workflows
+lint-actions:
+	actionlint
+	zizmor .
+
 # Full suite: everything CI runs.
-check-all: fmt-check vet lint test-race bench tidy-check
+check-all: fmt-check vet lint lint-actions test-race bench tidy-check
 
 # Full pre-flight for release
 release-check: check-all replace-check vuln secrets
