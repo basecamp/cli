@@ -39,10 +39,10 @@ jobs:
       - name: Generate token for private module access
         if: vars.RELEASE_CLIENT_ID != ''
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in pre-release tests; environment protection would block test gate before release approval
           owner: basecamp
           # repositories: <private-module>,homebrew-tap
 
@@ -65,7 +65,7 @@ jobs:
 
       - name: Cache BATS
         id: cache-bats
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5 # zizmor: ignore[cache-poisoning] -- static cache key (bats-1.11.0) is not attacker-controllable
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3 # zizmor: ignore[cache-poisoning] -- static cache key (bats-1.11.0) is not attacker-controllable
         with:
           path: /usr/local/libexec/bats-core
           key: bats-1.11.0
@@ -141,7 +141,7 @@ jobs:
       - name: Generate token for private module and tap access
         if: vars.RELEASE_CLIENT_ID != ''
         id: sdk-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -195,7 +195,7 @@ jobs:
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Install Syft
-        uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0
+        uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0.23.0
 
       # Configure vars.ENABLE_AI_CHANGELOG=true plus models:read permission to enable AI changelog
       - name: Build changelog context
@@ -363,7 +363,7 @@ jobs:
       - name: Generate token for skills repo
         if: steps.check-skills.outputs.found == 'true'
         id: skills-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
           app-id: ${{ vars.SKILLS_APP_ID }}
           private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
