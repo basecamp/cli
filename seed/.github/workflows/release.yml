@@ -9,13 +9,7 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
-  security-events: write
-  pull-requests: read
-  models: read
+permissions: {}
 
 jobs:
   security:
@@ -23,6 +17,10 @@ jobs:
     uses: ./.github/workflows/security.yml
     secrets:
       RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: read
 
   test:
     name: Test before release
@@ -49,7 +47,7 @@ jobs:
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
         with:
           go-version-file: 'go.mod'
 
@@ -67,7 +65,7 @@ jobs:
 
       - name: Cache BATS
         id: cache-bats
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5 # zizmor: ignore[cache-poisoning] -- cache key is a static version string, not attacker-controllable
         with:
           path: /usr/local/libexec/bats-core
           key: bats-1.11.0
@@ -151,7 +149,7 @@ jobs:
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
         with:
           go-version-file: 'go.mod'
 
