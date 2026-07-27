@@ -83,11 +83,28 @@ func argsStub(t *testing.T) (argsFile string) {
 	return argsFile
 }
 
-func readArgLines(t *testing.T, argsFile string) []string {
-	t.Helper()
+// argLines returns the stub's recorded invocations, or nil before the stub
+// has written any. Non-fatal so it can poll inside assert.Eventually — the
+// cleanup delete runs asynchronously.
+func argLines(argsFile string) []string {
 	raw, err := os.ReadFile(argsFile)
-	require.NoError(t, err)
+	if err != nil {
+		return nil
+	}
 	return strings.Split(strings.TrimSpace(string(raw)), "\n")
+}
+
+// requireCleanupDelete waits for the asynchronous cleanup delete to be
+// recorded after the synchronous add.
+func requireCleanupDelete(t *testing.T, argsFile, probeKey string) {
+	t.Helper()
+	lines := argLines(argsFile)
+	require.NotEmpty(t, lines, "add should be recorded synchronously")
+	assert.Equal(t, "-i", lines[0])
+	assert.Eventually(t, func() bool {
+		lines := argLines(argsFile)
+		return len(lines) == 2 && lines[1] == "delete-generic-password -s test -a "+probeKey
+	}, 5*time.Second, 10*time.Millisecond, "cleanup should delete the probe entry")
 }
 
 func TestProbeBoundedSuccess(t *testing.T) {
@@ -97,16 +114,13 @@ func TestProbeBoundedSuccess(t *testing.T) {
 	defer cancel()
 
 	require.NoError(t, probeBounded(ctx, "test", "__probe_ok"))
-
-	lines := readArgLines(t, argsFile)
-	require.Len(t, lines, 2, "probe should add then delete the probe entry")
-	assert.Equal(t, "-i", lines[0])
-	assert.Equal(t, "delete-generic-password -s test -a __probe_ok", lines[1])
+	requireCleanupDelete(t, argsFile, "__probe_ok")
 }
 
 // Regression: the probe deadline expiring immediately after a successful add
-// must not skip or kill the cleanup delete — cleanup runs under its own
-// budget, so no stray __probe_* entry is left in the keychain.
+// must not skip or kill the cleanup delete — cleanup runs asynchronously
+// under its own budget, so no stray __probe_* entry is left in the keychain
+// and construction is never stretched past the caller's ProbeTimeout.
 func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	argsFile := argsStub(t)
 
@@ -117,11 +131,7 @@ func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	t.Cleanup(func() { afterProbeAdd = restore })
 
 	require.NoError(t, probeBounded(ctx, "test", "__probe_expiry"))
-
-	lines := readArgLines(t, argsFile)
-	require.Len(t, lines, 2, "cleanup delete must still run after probe expiry")
-	assert.Equal(t, "-i", lines[0])
-	assert.Equal(t, "delete-generic-password -s test -a __probe_expiry", lines[1])
+	requireCleanupDelete(t, argsFile, "__probe_expiry")
 }
 
 func TestQuoteSecurityArg(t *testing.T) {
