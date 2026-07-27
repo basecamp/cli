@@ -31,7 +31,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
           # repositories: <private-module>
 
       - name: Set up Go
@@ -78,7 +79,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -113,7 +115,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -153,7 +156,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -189,7 +193,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -239,7 +244,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
 
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -297,7 +303,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in CI; environment protection would block PR-triggered runs
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
 
       - name: Check for benchmark-relevant changes
         id: filter

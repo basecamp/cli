@@ -31,7 +31,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
         with:
           go-version-file: go.mod
 
@@ -230,6 +231,7 @@ jobs:
           private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
           owner: basecamp
           repositories: skills
+          permission-contents: write
 
       - name: Sync skills
         if: steps.check.outputs.ready == 'true'
