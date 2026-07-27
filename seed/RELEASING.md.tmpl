@@ -71,6 +71,13 @@ vars are added.
 | `SKILLS_APP_ID` (var) | GitHub App ID for skills sync (optional) |
 | `SKILLS_APP_PRIVATE_KEY` | GitHub App private key for skills sync (optional) |
 
+The skills-sync App installation must grant **Contents: write** and
+**Issues: write** on `basecamp/skills` — the workflow requests both
+(`permission-contents` / `permission-issues`), and token creation fails
+outright if a requested permission is missing from the installation.
+Existing Apps set up with Contents only need the added Issues permission
+and the installation update approved before sync works again.
+
 **Environment secrets** (`release` environment — Settings > Environments):
 
 | Secret | Purpose |
