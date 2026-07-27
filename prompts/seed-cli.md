@@ -151,7 +151,7 @@ After the repo is pushed to GitHub:
    | macOS notarization | 5 secrets in `release` environment |
    | Homebrew tap | `secrets.HOMEBREW_TAP_TOKEN` |
    | AUR publish | `secrets.AUR_SSH_KEY` |
-   | Skills sync | `vars.SKILLS_APP_ID` + `secrets.SKILLS_APP_PRIVATE_KEY` |
+   | Skills sync | `vars.SKILLS_APP_ID` + `secrets.SKILLS_APP_PRIVATE_KEY` (App installation needs Contents: write + Issues: write on `basecamp/skills`; token creation fails if either is missing) |
 
    All features are off by default and degrade gracefully.
 
