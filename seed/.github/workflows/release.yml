@@ -44,8 +44,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in pre-release tests; environment protection would block test gate before release approval
-          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
-          permission-contents: read
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules and tap
+          permission-contents: write
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
@@ -150,8 +150,8 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
-          permission-contents: read
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules and tap
+          permission-contents: write
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
@@ -376,8 +376,8 @@ jobs:
         with:
           app-id: ${{ vars.SKILLS_APP_ID }}
           private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
-          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
-          permission-contents: read
+          owner: basecamp
+          permission-contents: write
           repositories: skills
 
       - name: Sync skills to distribution repo
