@@ -1,0 +1,27 @@
+seed/.github/workflows/ai-labeler.yml
+  s_7cd130483cb0ba::t_dff68edc01f1fa 22,112
+seed/.github/workflows/release.yml
+  s_7cd130483cb0ba::t_5ed9be83689b9f 34,51,62,137,154,292,353
+seed/.github/workflows/scorecard.yml
+  s_7cd130483cb0ba::t_92f6f9c61f930b 20
+seed/.github/workflows/security.yml
+  s_7cd130483cb0ba::t_804373e92cdfc8 26,47,78,93,126,138,153
+seed/.github/workflows/test.yml
+  s_7cd130483cb0ba::t_fe666a0d9b4989 22,38,69,84,95,105,119,145,159,181,195,230,245,288,304,314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d5641f5a076550127f3796f438608ba2bc2f955d",
+  "prompts": {},
+  "sessions": {
+    "s_7cd130483cb0ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e70042f8-3788-4966-bca1-06b7839d136b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    }
+  }
+}
