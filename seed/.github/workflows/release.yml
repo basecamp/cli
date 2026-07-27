@@ -44,11 +44,13 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }} # zizmor: ignore[secrets-outside-env] -- private module token needed in pre-release tests; environment protection would block test gate before release approval
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
         with:
           go-version-file: 'go.mod'
 
@@ -66,7 +68,8 @@ jobs:
 
       - name: Cache BATS
         id: cache-bats
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3 # zizmor: ignore[cache-poisoning] -- static cache key (bats-1.11.0) is not attacker-controllable
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        # zizmor: ignore[cache-poisoning] -- static cache key (bats-1.11.0) is not attacker-controllable
         with:
           path: /usr/local/libexec/bats-core
           key: bats-1.11.0
@@ -147,11 +150,13 @@ jobs:
         with:
           app-id: ${{ vars.RELEASE_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
           # repositories: <private-module>,homebrew-tap
 
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0 # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        # zizmor: ignore[cache-poisoning] -- cache is branch-isolated; fork PRs cannot write to this cache
         with:
           go-version-file: 'go.mod'
 
@@ -371,7 +376,8 @@ jobs:
         with:
           app-id: ${{ vars.SKILLS_APP_ID }}
           private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
-          owner: basecamp
+          owner: basecamp # zizmor: ignore[github-app] -- template ships disabled (RELEASE_CLIENT_ID unset); seeded repos must scope repositories: to their private modules
+          permission-contents: read
           repositories: skills
 
       - name: Sync skills to distribution repo
