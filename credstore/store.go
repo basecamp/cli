@@ -1,11 +1,10 @@
 package credstore
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/zalando/go-keyring"
 )
@@ -18,6 +17,15 @@ type StoreOptions struct {
 	// DisableEnvVar is the env var name that disables keyring (e.g., "BASECAMP_NO_KEYRING").
 	// When set to any non-empty value, forces file-based storage.
 	DisableEnvVar string
+
+	// ForceFile forces file-based storage without probing the keyring.
+	// The programmatic equivalent of setting DisableEnvVar.
+	ForceFile bool
+
+	// ProbeTimeout bounds the keyring availability probe. Zero means no
+	// bound, matching historical behavior. When the probe times out, the
+	// store falls back to file storage as if the probe had failed.
+	ProbeTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.
 	FallbackDir string
@@ -34,15 +42,11 @@ type Store struct {
 // NewStore creates a credential store. It probes the system keyring
 // and falls back to file storage if unavailable.
 func NewStore(opts StoreOptions) *Store {
-	if opts.DisableEnvVar != "" && os.Getenv(opts.DisableEnvVar) != "" {
+	if opts.ForceFile || (opts.DisableEnvVar != "" && os.Getenv(opts.DisableEnvVar) != "") {
 		return &Store{serviceName: opts.ServiceName, useKeyring: false, fallbackDir: opts.FallbackDir}
 	}
 
-	// Probe keyring with a random key to avoid collisions.
-	probeKey := probeKeyName()
-	err := keyring.Set(opts.ServiceName, probeKey, "probe")
-	if err == nil {
-		_ = keyring.Delete(opts.ServiceName, probeKey)
+	if probeKeyring(opts.ServiceName, opts.ProbeTimeout) == nil {
 		return &Store{serviceName: opts.ServiceName, useKeyring: true, fallbackDir: opts.FallbackDir}
 	}
 
@@ -58,12 +62,6 @@ func NewStore(opts StoreOptions) *Store {
 // storage, or empty string if using keyring.
 func (s *Store) FallbackWarning() string {
 	return s.fallbackWarning
-}
-
-func probeKeyName() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return "__probe_" + hex.EncodeToString(b)
 }
 
 func (s *Store) key(name string) string {
