@@ -83,28 +83,18 @@ func argsStub(t *testing.T) (argsFile string) {
 	return argsFile
 }
 
-// argLines returns the stub's recorded invocations, or nil before the stub
-// has written any. Non-fatal so it can poll inside assert.Eventually — the
-// cleanup delete runs asynchronously.
-func argLines(argsFile string) []string {
-	raw, err := os.ReadFile(argsFile)
-	if err != nil {
-		return nil
-	}
-	return strings.Split(strings.TrimSpace(string(raw)), "\n")
-}
-
-// requireCleanupDelete waits for the asynchronous cleanup delete to be
-// recorded after the synchronous add.
+// requireCleanupDelete asserts the stub recorded the add followed by the
+// cleanup delete. Both are synchronous: cleanup is deliberately not detached
+// (see probeCleanupTimeout), so it has completed by the time probeBounded
+// returns.
 func requireCleanupDelete(t *testing.T, argsFile, probeKey string) {
 	t.Helper()
-	lines := argLines(argsFile)
-	require.NotEmpty(t, lines, "add should be recorded synchronously")
+	raw, err := os.ReadFile(argsFile)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	require.Len(t, lines, 2, "probe should add then delete the probe entry")
 	assert.Equal(t, "-i", lines[0])
-	assert.Eventually(t, func() bool {
-		lines := argLines(argsFile)
-		return len(lines) == 2 && lines[1] == "delete-generic-password -s test -a "+probeKey
-	}, 5*time.Second, 10*time.Millisecond, "cleanup should delete the probe entry")
+	assert.Equal(t, "delete-generic-password -s test -a "+probeKey, lines[1])
 }
 
 func TestProbeBoundedSuccess(t *testing.T) {

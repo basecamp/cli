@@ -22,7 +22,7 @@ func TestProbeKeyNameRandFailure(t *testing.T) {
 	t.Cleanup(func() { randRead = restore })
 
 	key := probeKeyName()
-	assert.Regexp(t, `^__probe_\d+_\d+$`, key, "fallback should key on PID + time, not the zeroed rand buffer")
+	assert.Regexp(t, `^__probe_\d+_\d+_\d+$`, key, "fallback should key on PID + time + sequence, not the zeroed rand buffer")
 	assert.NotEqual(t, key, probeKeyName(), "fallback keys must not repeat")
 }
 
@@ -32,5 +32,5 @@ func TestProbeKeyNameShortRead(t *testing.T) {
 	t.Cleanup(func() { randRead = restore })
 
 	key := probeKeyName()
-	assert.Regexp(t, `^__probe_\d+_\d+$`, key, "a short read must fall back, not leak a half-zeroed key")
+	assert.Regexp(t, `^__probe_\d+_\d+_\d+$`, key, "a short read must fall back, not leak a half-zeroed key")
 }

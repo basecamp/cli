@@ -14,17 +14,27 @@ type StoreOptions struct {
 	// ServiceName is the keyring service name (e.g., "basecamp", "fizzy").
 	ServiceName string
 
-	// DisableEnvVar is the env var name that disables keyring (e.g., "BASECAMP_NO_KEYRING").
-	// When set to any non-empty value, forces file-based storage.
+	// DisableEnvVar names an environment variable (e.g., "BASECAMP_NO_KEYRING").
+	// When that variable is set to any non-empty value in the process
+	// environment, the store uses file-based storage without probing the
+	// keyring. An empty DisableEnvVar field disables this check entirely.
 	DisableEnvVar string
 
-	// ForceFile forces file-based storage without probing the keyring.
-	// The programmatic equivalent of setting DisableEnvVar.
+	// ForceFile forces file-based storage without probing the keyring —
+	// the programmatic equivalent of the DisableEnvVar environment variable
+	// being set.
 	ForceFile bool
 
 	// ProbeTimeout bounds the keyring availability probe. Zero or negative
 	// means no bound, matching historical behavior. When the probe times
 	// out, the store falls back to file storage as if the probe had failed.
+	// After a successful probe, removal of the throwaway probe entry runs
+	// synchronously with a short budget of its own, so worst-case
+	// construction is ProbeTimeout plus that cleanup bound (five seconds;
+	// typically milliseconds, since cleanup only runs when the keyring just
+	// proved responsive). Cleanup is deliberately not detached: Go does not
+	// wait for goroutines at process exit, and a short-lived CLI would leak
+	// a probe entry per invocation.
 	ProbeTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.

@@ -15,11 +15,14 @@ import (
 var securityPath = "/usr/bin/security"
 
 // probeCleanupTimeout bounds removal of the probe entry. Cleanup runs
-// asynchronously under its own budget rather than the probe's: a successful
-// add may have consumed the probe deadline, a delete skipped or killed by
-// the exhausted probe context would leave a stray __probe_* entry in the
-// keychain, and a slow delete must not stretch construction past the
-// caller's ProbeTimeout.
+// synchronously under its own budget rather than the probe's: a successful
+// add may have consumed the probe deadline, and a delete skipped or killed
+// by the exhausted probe context would leave a stray __probe_* entry in the
+// keychain. Synchronous because Go does not wait for goroutines at process
+// exit — an unjoined cleanup in a short-lived CLI would leak the entry. The
+// tail is theoretical in practice: cleanup only runs when the keychain
+// proved responsive milliseconds earlier. StoreOptions.ProbeTimeout
+// documents this additive bound.
 const probeCleanupTimeout = 5 * time.Second
 
 // probeBounded mirrors go-keyring's darwin Set — `security -i` fed an
@@ -45,16 +48,11 @@ func probeBounded(ctx context.Context, serviceName, probeKey string) error {
 
 	afterProbeAdd()
 
-	// Best-effort, asynchronous, and under its own budget: the add already
-	// proved availability, a failed delete must not fail the probe, and
-	// cleanup must neither be starved by the exhausted probe context nor
-	// stretch construction past the caller's ProbeTimeout.
-	security := securityPath
-	go func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), probeCleanupTimeout)
-		defer cancel()
-		_ = exec.CommandContext(cleanupCtx, security, "delete-generic-password", "-s", serviceName, "-a", probeKey).Run()
-	}()
+	// Best-effort by design: the add already proved availability, and a
+	// failed delete must not fail the probe.
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), probeCleanupTimeout)
+	defer cancel()
+	_ = exec.CommandContext(cleanupCtx, securityPath, "delete-generic-password", "-s", serviceName, "-a", probeKey).Run()
 	return nil
 }
 

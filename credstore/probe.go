@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -42,15 +43,19 @@ func probeDirect(serviceName, probeKey string) error {
 // randRead is crypto/rand.Read, replaceable in tests.
 var randRead = rand.Read
 
+// probeSeq disambiguates fallback probe keys within a process: UnixNano can
+// repeat on coarse-resolution clocks.
+var probeSeq atomic.Uint64
+
 // probeKeyName returns a low-collision key for the throwaway probe entry so
 // cleanup never deletes a real credential. crypto/rand is effectively
 // infallible on supported platforms, but a failed or short read must not
-// yield a predictable key: fall back to PID + wall clock, still unique
-// enough for a transient probe entry.
+// yield a predictable key: fall back to PID + wall clock + a per-process
+// sequence, still unique enough for a transient probe entry.
 func probeKeyName() string {
 	b := make([]byte, 8)
 	if n, err := randRead(b); err != nil || n != len(b) {
-		return fmt.Sprintf("__probe_%d_%d", os.Getpid(), time.Now().UnixNano())
+		return fmt.Sprintf("__probe_%d_%d_%d", os.Getpid(), time.Now().UnixNano(), probeSeq.Add(1))
 	}
 	return "__probe_" + hex.EncodeToString(b)
 }
