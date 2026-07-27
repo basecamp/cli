@@ -22,9 +22,9 @@ type StoreOptions struct {
 	// The programmatic equivalent of setting DisableEnvVar.
 	ForceFile bool
 
-	// ProbeTimeout bounds the keyring availability probe. Zero means no
-	// bound, matching historical behavior. When the probe times out, the
-	// store falls back to file storage as if the probe had failed.
+	// ProbeTimeout bounds the keyring availability probe. Zero or negative
+	// means no bound, matching historical behavior. When the probe times
+	// out, the store falls back to file storage as if the probe had failed.
 	ProbeTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.

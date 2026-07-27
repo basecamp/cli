@@ -13,9 +13,9 @@ import (
 var probeKeyring = probe
 
 // probe writes and removes a throwaway keyring entry to check availability.
-// A zero timeout probes unbounded, matching historical behavior. A positive
-// timeout bounds the probe; on platforms where the probe runs a child
-// process (darwin), the child is killed when the timeout expires.
+// A zero or negative timeout probes unbounded, matching historical behavior.
+// A positive timeout bounds the probe; on platforms where the probe runs a
+// child process (darwin), the child is killed when the timeout expires.
 func probe(serviceName string, timeout time.Duration) error {
 	// Probe with a random key to avoid collisions.
 	probeKey := probeKeyName()
