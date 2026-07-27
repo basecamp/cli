@@ -1,0 +1,50 @@
+credstore/store.go
+  s_e482278ba88739::t_09b985d92f7c9d 7,21-28
+  s_e482278ba88739::t_be159e4c0373ea 45,49
+  s_a1a0c4555291a1::t_2c1c1ce580c35d 29
+credstore/probe_other.go
+  s_e482278ba88739::t_61788bd3fdcbe5 1-21
+credstore/probe_darwin.go
+  s_e482278ba88739::t_b9e491a33e850a 1-53
+credstore/probe.go
+  s_e482278ba88739::t_2ebd2b26611aee 1-44
+credstore/store_test.go
+  s_e482278ba88739::t_c3742dbaa639f1 81-139
+  s_e482278ba88739::t_5fe1b365b060bc 4,8,14-19
+  s_4bad1d45a93fd3::t_ab6638e2769f2b 20
+credstore/probe_darwin_test.go
+  s_e482278ba88739::t_4fdae87d7280c0 30-34,36-44,47,56
+  s_e482278ba88739::t_cc3ff724cef35b 1-29,35,45-46,48-55,57-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "fcedaf794b2161e9f30463cfdcbe9e409af94446",
+  "prompts": {},
+  "sessions": {
+    "s_4bad1d45a93fd3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce21cb6f-f277-486f-ba27-4c06a2910712",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    },
+    "s_a1a0c4555291a1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa4a9-4738-7843-8d5c-c3c71fa6becb",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    },
+    "s_e482278ba88739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd1b82ec-bfac-4598-92d4-84af692fce2e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    }
+  }
+}
