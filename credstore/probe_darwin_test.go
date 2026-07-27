@@ -108,9 +108,9 @@ func TestProbeBoundedSuccess(t *testing.T) {
 }
 
 // Regression: the probe deadline expiring immediately after a successful add
-// must not skip or kill the cleanup delete — cleanup runs asynchronously
-// under its own budget, so no stray __probe_* entry is left in the keychain
-// and construction is never stretched past the caller's ProbeTimeout.
+// must not skip or kill the cleanup delete — cleanup runs synchronously
+// under its own budget (the documented additive bound), so no stray
+// __probe_* entry is left in the keychain.
 func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	argsFile := argsStub(t)
 
