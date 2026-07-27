@@ -1,0 +1,21 @@
+prompts/seed-cli.md
+  s_7cd130483cb0ba::t_bfcfece2f72ea2 154
+seed/RELEASING.md.tmpl
+  s_7cd130483cb0ba::t_d3ffa49fc76bf0 74-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "05ffcdff83897174ffa6ee50ef871824495b35ec",
+  "prompts": {},
+  "sessions": {
+    "s_7cd130483cb0ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e70042f8-3788-4966-bca1-06b7839d136b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    }
+  }
+}
