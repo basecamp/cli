@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -37,8 +39,18 @@ func probeDirect(serviceName, probeKey string) error {
 	return nil
 }
 
+// randRead is crypto/rand.Read, replaceable in tests.
+var randRead = rand.Read
+
+// probeKeyName returns a low-collision key for the throwaway probe entry so
+// cleanup never deletes a real credential. crypto/rand is effectively
+// infallible on supported platforms, but a failed or short read must not
+// yield a predictable key: fall back to PID + wall clock, still unique
+// enough for a transient probe entry.
 func probeKeyName() string {
 	b := make([]byte, 8)
-	_, _ = rand.Read(b)
+	if _, err := randRead(b); err != nil {
+		return fmt.Sprintf("__probe_%d_%d", os.Getpid(), time.Now().UnixNano())
+	}
 	return "__probe_" + hex.EncodeToString(b)
 }
