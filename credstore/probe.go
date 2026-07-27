@@ -49,7 +49,7 @@ var randRead = rand.Read
 // enough for a transient probe entry.
 func probeKeyName() string {
 	b := make([]byte, 8)
-	if _, err := randRead(b); err != nil {
+	if n, err := randRead(b); err != nil || n != len(b) {
 		return fmt.Sprintf("__probe_%d_%d", os.Getpid(), time.Now().UnixNano())
 	}
 	return "__probe_" + hex.EncodeToString(b)

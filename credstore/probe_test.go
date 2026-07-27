@@ -13,16 +13,24 @@ func TestProbeKeyName(t *testing.T) {
 	assert.NotEqual(t, probeKeyName(), probeKeyName(), "keys must not repeat")
 }
 
-// Regression: a failed rand read must not yield a predictable probe key —
-// cleanup deletes the probe entry, so a colliding key could delete a real
-// credential.
+// Regression: a failed or short rand read must not yield a predictable probe
+// key — cleanup deletes the probe entry, so a colliding key could delete a
+// real credential.
 func TestProbeKeyNameRandFailure(t *testing.T) {
 	restore := randRead
 	randRead = func([]byte) (int, error) { return 0, errors.New("entropy exhausted") }
 	t.Cleanup(func() { randRead = restore })
 
 	key := probeKeyName()
-	assert.True(t, strings.HasPrefix(key, "__probe_"))
-	assert.NotEqual(t, "__probe_"+strings.Repeat("0", 16), key, "fallback must not be the zeroed rand buffer")
+	assert.Regexp(t, `^__probe_\d+_\d+$`, key, "fallback should key on PID + time, not the zeroed rand buffer")
 	assert.NotEqual(t, key, probeKeyName(), "fallback keys must not repeat")
+}
+
+func TestProbeKeyNameShortRead(t *testing.T) {
+	restore := randRead
+	randRead = func(b []byte) (int, error) { return len(b) / 2, nil }
+	t.Cleanup(func() { randRead = restore })
+
+	key := probeKeyName()
+	assert.Regexp(t, `^__probe_\d+_\d+$`, key, "a short read must fall back, not leak a half-zeroed key")
 }
