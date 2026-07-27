@@ -7,11 +7,18 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // securityPath is the macOS keychain tool go-keyring shells out to.
 // Variable so tests can substitute a stub.
 var securityPath = "/usr/bin/security"
+
+// probeCleanupTimeout bounds removal of the probe entry. Cleanup runs under
+// its own budget rather than the probe's: a successful add may have consumed
+// the probe deadline, and a delete skipped or killed by the exhausted probe
+// context would leave a stray __probe_* entry in the keychain.
+const probeCleanupTimeout = 5 * time.Second
 
 // probeBounded mirrors go-keyring's darwin Set — `security -i` fed an
 // add-generic-password command over stdin — via exec.CommandContext so the
@@ -34,9 +41,20 @@ func probeBounded(ctx context.Context, serviceName, probeKey string) error {
 		return err
 	}
 
-	_ = exec.CommandContext(ctx, securityPath, "delete-generic-password", "-s", serviceName, "-a", probeKey).Run()
+	afterProbeAdd()
+
+	// Best-effort by design: the add already proved availability, and a
+	// failed delete must not fail the probe.
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), probeCleanupTimeout)
+	defer cancel()
+	_ = exec.CommandContext(cleanupCtx, securityPath, "delete-generic-password", "-s", serviceName, "-a", probeKey).Run()
 	return nil
 }
+
+// afterProbeAdd runs between the probe's add and its cleanup delete. No-op in
+// production; tests use it to expire the probe context in that window and pin
+// cleanup's independence from it.
+var afterProbeAdd = func() {}
 
 var securityArgUnsafe = regexp.MustCompile(`[^\w@%+=:,./-]`)
 
