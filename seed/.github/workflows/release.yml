@@ -378,6 +378,7 @@ jobs:
           private-key: ${{ secrets.SKILLS_APP_PRIVATE_KEY }}
           owner: basecamp
           permission-contents: write
+          permission-issues: write # failure notifications: gh issue list/comment/create on the skills repo
           repositories: skills
 
       - name: Sync skills to distribution repo
