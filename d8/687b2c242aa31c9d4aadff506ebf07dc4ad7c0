@@ -1,0 +1,23 @@
+credstore/probe.go
+  s_e482278ba88739::t_28d9776b048e65 13-25,27,36
+credstore/store.go
+  s_e482278ba88739::t_c80049305827db 31-34
+credstore/probe_darwin_test.go
+  s_e482278ba88739::t_7d2792ff321850 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "d8687b2c242aa31c9d4aadff506ebf07dc4ad7c0",
+  "prompts": {},
+  "sessions": {
+    "s_e482278ba88739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd1b82ec-bfac-4598-92d4-84af692fce2e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    }
+  }
+}
