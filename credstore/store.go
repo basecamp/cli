@@ -28,13 +28,14 @@ type StoreOptions struct {
 	// ProbeTimeout bounds the keyring availability probe. Zero or negative
 	// means no bound, matching historical behavior. When the probe times
 	// out, the store falls back to file storage as if the probe had failed.
-	// After a successful probe, removal of the throwaway probe entry runs
-	// synchronously with a short budget of its own, so worst-case
-	// construction is ProbeTimeout plus that cleanup bound (five seconds;
-	// typically milliseconds, since cleanup only runs when the keyring just
-	// proved responsive). Cleanup is deliberately not detached: Go does not
-	// wait for goroutines at process exit, and a short-lived CLI would leak
-	// a probe entry per invocation.
+	// On darwin, removal of the throwaway probe entry runs synchronously
+	// after a successful probe with a short budget of its own, so worst-case
+	// construction there is ProbeTimeout plus that cleanup bound (five
+	// seconds; typically milliseconds, since cleanup only runs when the
+	// keyring just proved responsive). That cleanup is deliberately not
+	// detached: Go does not wait for goroutines at process exit, and a
+	// short-lived CLI would leak a probe entry per invocation. On other
+	// platforms cleanup is part of the probe itself and adds no extra time.
 	ProbeTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.

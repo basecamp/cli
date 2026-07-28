@@ -17,7 +17,7 @@ var securityPath = "/usr/bin/security"
 // probeCleanupTimeout bounds removal of the probe entry. Cleanup runs
 // synchronously under its own budget rather than the probe's: a successful
 // add may have consumed the probe deadline, and a delete skipped or killed
-// by the exhausted probe context would leave a stray __probe_* entry in the
+// by the exhausted probe context would leave a stray probe entry in the
 // keychain. Synchronous because Go does not wait for goroutines at process
 // exit — an unjoined cleanup in a short-lived CLI would leak the entry. The
 // tail is theoretical in practice: cleanup only runs when the keychain

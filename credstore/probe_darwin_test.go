@@ -87,14 +87,14 @@ func argsStub(t *testing.T) (argsFile string) {
 // cleanup delete. Both are synchronous: cleanup is deliberately not detached
 // (see probeCleanupTimeout), so it has completed by the time probeBounded
 // returns.
-func requireCleanupDelete(t *testing.T, argsFile, probeKey string) {
+func requireCleanupDelete(t *testing.T, argsFile, service, key string) {
 	t.Helper()
 	raw, err := os.ReadFile(argsFile)
 	require.NoError(t, err)
 	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
 	require.Len(t, lines, 2, "probe should add then delete the probe entry")
 	assert.Equal(t, "-i", lines[0])
-	assert.Equal(t, "delete-generic-password -s test -a "+probeKey, lines[1])
+	assert.Equal(t, "delete-generic-password -s "+service+" -a "+key, lines[1])
 }
 
 func TestProbeBoundedSuccess(t *testing.T) {
@@ -104,13 +104,22 @@ func TestProbeBoundedSuccess(t *testing.T) {
 	defer cancel()
 
 	require.NoError(t, probeBounded(ctx, "test", "__probe_ok"))
-	requireCleanupDelete(t, argsFile, "__probe_ok")
+	requireCleanupDelete(t, argsFile, "test", "__probe_ok")
+}
+
+// The probe must operate in its own service namespace so it can never touch
+// a credential in the caller's real service, whatever its name.
+func TestProbeUsesIsolatedNamespace(t *testing.T) {
+	argsFile := argsStub(t)
+
+	require.NoError(t, probe("svc", 5*time.Second))
+	requireCleanupDelete(t, argsFile, "svc"+probeServiceSuffix, probeKey)
 }
 
 // Regression: the probe deadline expiring immediately after a successful add
 // must not skip or kill the cleanup delete — cleanup runs synchronously
-// under its own budget (the documented additive bound), so no stray
-// __probe_* entry is left in the keychain.
+// under its own budget (the documented additive bound), so no stray probe
+// entry is left in the keychain.
 func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	argsFile := argsStub(t)
 
@@ -121,7 +130,7 @@ func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	t.Cleanup(func() { afterProbeAdd = restore })
 
 	require.NoError(t, probeBounded(ctx, "test", "__probe_expiry"))
-	requireCleanupDelete(t, argsFile, "__probe_expiry")
+	requireCleanupDelete(t, argsFile, "test", "__probe_expiry")
 }
 
 func TestQuoteSecurityArg(t *testing.T) {
