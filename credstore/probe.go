@@ -28,12 +28,17 @@ const (
 	probeKey           = "__probe__"
 )
 
+// probeService derives the reserved namespace the probe entry lives in.
+func probeService(serviceName string) string {
+	return probeServicePrefix + serviceName
+}
+
 // probe writes and removes a throwaway keyring entry to check availability.
 // A zero or negative timeout probes unbounded, matching historical behavior.
 // A positive timeout bounds the probe; on platforms where the probe runs a
 // child process (darwin), the child is killed when the timeout expires.
 func probe(serviceName string, timeout time.Duration) error {
-	service := probeServicePrefix + serviceName
+	service := probeService(serviceName)
 	if timeout <= 0 {
 		return probeDirect(service, probeKey)
 	}
