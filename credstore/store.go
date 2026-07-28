@@ -1,11 +1,10 @@
 package credstore
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/zalando/go-keyring"
 )
@@ -15,9 +14,41 @@ type StoreOptions struct {
 	// ServiceName is the keyring service name (e.g., "basecamp", "fizzy").
 	ServiceName string
 
-	// DisableEnvVar is the env var name that disables keyring (e.g., "BASECAMP_NO_KEYRING").
-	// When set to any non-empty value, forces file-based storage.
+	// DisableEnvVar names an environment variable (e.g., "BASECAMP_NO_KEYRING").
+	// When that variable is set to any non-empty value in the process
+	// environment, the store uses file-based storage without probing the
+	// keyring. An empty DisableEnvVar field disables this check entirely.
 	DisableEnvVar string
+
+	// ForceFile forces file-based storage without probing the keyring —
+	// the programmatic equivalent of the DisableEnvVar environment variable
+	// being set.
+	ForceFile bool
+
+	// ProbeTimeout bounds the keyring availability probe. Zero or negative
+	// means no bound, matching historical behavior. When the probe times
+	// out, the store falls back to file storage as if the probe had failed.
+	// Probing writes and removes a throwaway entry under the dedicated
+	// keyring service "credstore.probe.<ServiceName>" (account "__probe__")
+	// — a namespace reserved by this package — never under ServiceName
+	// itself, so a probe cannot touch real credentials.
+	//
+	// On darwin, removal of the throwaway probe entry runs synchronously
+	// after a successful probe with a short budget of its own, so worst-case
+	// construction there is ProbeTimeout plus that cleanup bound (five
+	// seconds; typically milliseconds, since cleanup only runs when the
+	// keyring just proved responsive). That cleanup is deliberately not
+	// detached: Go does not wait for goroutines at process exit, and a
+	// short-lived CLI would leak a probe entry per invocation. On other
+	// platforms cleanup is part of the probe itself and adds no extra time.
+	//
+	// Limitation: on darwin, a positive timeout probes via the security
+	// binary directly — the whole point is operating below go-keyring's
+	// uncancellable exec layer — so it cannot observe go-keyring's mocked
+	// provider (keyring.MockInit), which go-keyring does not expose. Tests
+	// that mock the keyring should use a zero ProbeTimeout (the unbounded
+	// probe goes through go-keyring and honors the mock) or ForceFile.
+	ProbeTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.
 	FallbackDir string
@@ -34,15 +65,11 @@ type Store struct {
 // NewStore creates a credential store. It probes the system keyring
 // and falls back to file storage if unavailable.
 func NewStore(opts StoreOptions) *Store {
-	if opts.DisableEnvVar != "" && os.Getenv(opts.DisableEnvVar) != "" {
+	if opts.ForceFile || (opts.DisableEnvVar != "" && os.Getenv(opts.DisableEnvVar) != "") {
 		return &Store{serviceName: opts.ServiceName, useKeyring: false, fallbackDir: opts.FallbackDir}
 	}
 
-	// Probe keyring with a random key to avoid collisions.
-	probeKey := probeKeyName()
-	err := keyring.Set(opts.ServiceName, probeKey, "probe")
-	if err == nil {
-		_ = keyring.Delete(opts.ServiceName, probeKey)
+	if probeKeyring(opts.ServiceName, opts.ProbeTimeout) == nil {
 		return &Store{serviceName: opts.ServiceName, useKeyring: true, fallbackDir: opts.FallbackDir}
 	}
 
@@ -58,12 +85,6 @@ func NewStore(opts StoreOptions) *Store {
 // storage, or empty string if using keyring.
 func (s *Store) FallbackWarning() string {
 	return s.fallbackWarning
-}
-
-func probeKeyName() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return "__probe_" + hex.EncodeToString(b)
 }
 
 func (s *Store) key(name string) string {

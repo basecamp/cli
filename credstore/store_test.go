@@ -1,13 +1,22 @@
 package credstore
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func stubProbe(t *testing.T, fn func(serviceName string, timeout time.Duration) error) {
+	t.Helper()
+	restore := probeKeyring
+	probeKeyring = fn
+	t.Cleanup(func() { probeKeyring = restore })
+}
 
 func TestFileStore(t *testing.T) {
 	dir := t.TempDir()
@@ -67,6 +76,65 @@ func TestFileStoreMultipleKeys(t *testing.T) {
 	assert.Error(t, err)
 	d2, _ = store.Load("key2")
 	assert.JSONEq(t, `{"b":2}`, string(d2))
+}
+
+func TestForceFileSkipsProbe(t *testing.T) {
+	dir := t.TempDir()
+	stubProbe(t, func(string, time.Duration) error {
+		t.Error("probe should not run when ForceFile is set")
+		return nil
+	})
+
+	store := NewStore(StoreOptions{
+		ServiceName: "test",
+		ForceFile:   true,
+		FallbackDir: dir,
+	})
+
+	assert.False(t, store.UsingKeyring())
+	assert.Empty(t, store.FallbackWarning())
+
+	require.NoError(t, store.Save("mykey", []byte(`{"token":"abc123"}`)))
+	data, err := store.Load("mykey")
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"token":"abc123"}`, string(data))
+}
+
+func TestProbeTimeoutFallsBackToFile(t *testing.T) {
+	dir := t.TempDir()
+	stubProbe(t, func(serviceName string, timeout time.Duration) error {
+		assert.Equal(t, "test", serviceName)
+		assert.Equal(t, 50*time.Millisecond, timeout)
+		return context.DeadlineExceeded
+	})
+
+	store := NewStore(StoreOptions{
+		ServiceName:  "test",
+		ProbeTimeout: 50 * time.Millisecond,
+		FallbackDir:  dir,
+	})
+
+	assert.False(t, store.UsingKeyring())
+	assert.Contains(t, store.FallbackWarning(), "system keyring unavailable")
+}
+
+func TestZeroValueOptionsProbeUnbounded(t *testing.T) {
+	dir := t.TempDir()
+	probed := false
+	stubProbe(t, func(serviceName string, timeout time.Duration) error {
+		probed = true
+		assert.Zero(t, timeout)
+		return nil
+	})
+
+	store := NewStore(StoreOptions{
+		ServiceName: "test",
+		FallbackDir: dir,
+	})
+
+	assert.True(t, probed)
+	assert.True(t, store.UsingKeyring())
+	assert.Empty(t, store.FallbackWarning())
 }
 
 func TestLoadNonexistent(t *testing.T) {
