@@ -32,6 +32,7 @@ type StoreOptions struct {
 	// keyring service "credstore.probe.<ServiceName>" (account "__probe__")
 	// — a namespace reserved by this package — never under ServiceName
 	// itself, so a probe cannot touch real credentials.
+	//
 	// On darwin, removal of the throwaway probe entry runs synchronously
 	// after a successful probe with a short budget of its own, so worst-case
 	// construction there is ProbeTimeout plus that cleanup bound (five
@@ -40,6 +41,13 @@ type StoreOptions struct {
 	// detached: Go does not wait for goroutines at process exit, and a
 	// short-lived CLI would leak a probe entry per invocation. On other
 	// platforms cleanup is part of the probe itself and adds no extra time.
+	//
+	// Limitation: on darwin, a positive timeout probes via the security
+	// binary directly — the whole point is operating below go-keyring's
+	// uncancellable exec layer — so it cannot observe go-keyring's mocked
+	// provider (keyring.MockInit), which go-keyring does not expose. Tests
+	// that mock the keyring should use a zero ProbeTimeout (the unbounded
+	// probe goes through go-keyring and honors the mock) or ForceFile.
 	ProbeTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.
