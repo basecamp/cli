@@ -30,12 +30,12 @@ const probeCleanupTimeout = 5 * time.Second
 // child is killed when ctx expires. go-keyring's own exec has no
 // cancellation path: on a locked keychain with no TTY or GUI it blocks
 // forever and the child cannot be reclaimed from outside.
-func probeBounded(ctx context.Context, serviceName, probeKey string) error {
+func probeBounded(ctx context.Context, serviceName, key string) error {
 	// go-keyring base64-encodes every password it stores; mirror that so
 	// probe success genuinely predicts go-keyring usability.
 	password := "go-keyring-base64:" + base64.StdEncoding.EncodeToString([]byte("probe"))
 	command := fmt.Sprintf("add-generic-password -U -s %s -a %s -w %s\n",
-		quoteSecurityArg(serviceName), quoteSecurityArg(probeKey), quoteSecurityArg(password))
+		quoteSecurityArg(serviceName), quoteSecurityArg(key), quoteSecurityArg(password))
 
 	cmd := exec.CommandContext(ctx, securityPath, "-i")
 	cmd.Stdin = strings.NewReader(command)
@@ -52,7 +52,7 @@ func probeBounded(ctx context.Context, serviceName, probeKey string) error {
 	// failed delete must not fail the probe.
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), probeCleanupTimeout)
 	defer cancel()
-	_ = exec.CommandContext(cleanupCtx, securityPath, "delete-generic-password", "-s", serviceName, "-a", probeKey).Run()
+	_ = exec.CommandContext(cleanupCtx, securityPath, "delete-generic-password", "-s", serviceName, "-a", key).Run()
 	return nil
 }
 

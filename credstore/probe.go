@@ -2,11 +2,6 @@ package credstore
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-	"os"
-	"sync/atomic"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -15,13 +10,22 @@ import (
 // probeKeyring checks system keyring availability. Overridable in tests.
 var probeKeyring = probe
 
+// probeKey names the throwaway entry every probe writes and removes. It is
+// deliberately deterministic, not random: go-keyring has no list API, so an
+// entry leaked by an abandoned probe (a timed-out probe whose blocked Set
+// completes after the process exits, or a darwin cleanup cut short) would be
+// permanently unfindable under a random name. Under a fixed name, the next
+// probe's Set overwrites the leftover and its Delete removes it — leaks
+// self-heal on the following run. Concurrent probes sharing the name are
+// harmless: Set results are unaffected, and the losing Delete just fails,
+// which is ignored. The name is reserved within the service's namespace.
+const probeKey = "__probe__"
+
 // probe writes and removes a throwaway keyring entry to check availability.
 // A zero or negative timeout probes unbounded, matching historical behavior.
 // A positive timeout bounds the probe; on platforms where the probe runs a
 // child process (darwin), the child is killed when the timeout expires.
 func probe(serviceName string, timeout time.Duration) error {
-	// Probe with a random key to avoid collisions.
-	probeKey := probeKeyName()
 	if timeout <= 0 {
 		return probeDirect(serviceName, probeKey)
 	}
@@ -32,30 +36,10 @@ func probe(serviceName string, timeout time.Duration) error {
 }
 
 // probeDirect probes via go-keyring, which has no cancellation path.
-func probeDirect(serviceName, probeKey string) error {
-	if err := keyring.Set(serviceName, probeKey, "probe"); err != nil {
+func probeDirect(serviceName, key string) error {
+	if err := keyring.Set(serviceName, key, "probe"); err != nil {
 		return err
 	}
-	_ = keyring.Delete(serviceName, probeKey)
+	_ = keyring.Delete(serviceName, key)
 	return nil
-}
-
-// randRead is crypto/rand.Read, replaceable in tests.
-var randRead = rand.Read
-
-// probeSeq disambiguates fallback probe keys within a process: UnixNano can
-// repeat on coarse-resolution clocks.
-var probeSeq atomic.Uint64
-
-// probeKeyName returns a low-collision key for the throwaway probe entry so
-// cleanup never deletes a real credential. crypto/rand is effectively
-// infallible on supported platforms, but a failed or short read must not
-// yield a predictable key: fall back to PID + wall clock + a per-process
-// sequence, still unique enough for a transient probe entry.
-func probeKeyName() string {
-	b := make([]byte, 8)
-	if n, err := randRead(b); err != nil || n != len(b) {
-		return fmt.Sprintf("__probe_%d_%d_%d", os.Getpid(), time.Now().UnixNano(), probeSeq.Add(1))
-	}
-	return "__probe_" + hex.EncodeToString(b)
 }
