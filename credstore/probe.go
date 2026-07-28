@@ -10,19 +10,21 @@ import (
 // probeKeyring checks system keyring availability. Overridable in tests.
 var probeKeyring = probe
 
-// The probe entry lives in its own service namespace — the caller's service
-// plus probeServiceSuffix — so probing can never overwrite or delete a
-// credential in the real service, whatever its name. Within that namespace
-// the key is deliberately deterministic, not random: go-keyring has no list
-// API, so an entry leaked by an abandoned probe (a timed-out probe whose
-// blocked Set completes after the process exits, or a darwin cleanup cut
-// short) would be permanently unfindable under a random name. Under a fixed
-// name, the next probe's Set overwrites the leftover and its Delete removes
-// it — leaks self-heal on the following run. Concurrent probes sharing the
-// name are harmless: Set results are unaffected, and the losing Delete just
-// fails, which is ignored.
+// The probe entry lives in this package's own service namespace —
+// probeServicePrefix plus the caller's service — publicly documented on
+// StoreOptions.ProbeTimeout as reserved by credstore, so probing never
+// touches the caller's real service and a colliding consumer would have to
+// deliberately adopt this package's declared namespace. Within it, the key
+// is deliberately deterministic, not random: go-keyring has no list API, so
+// an entry leaked by an abandoned probe (a timed-out probe whose blocked Set
+// completes after the process exits, or a darwin cleanup cut short) would be
+// permanently unfindable under a random name. Under a fixed name, the next
+// probe's Set overwrites the leftover and its Delete removes it — leaks
+// self-heal on the following run. Concurrent probes sharing the name are
+// harmless: Set results are unaffected, and the losing Delete just fails,
+// which is ignored.
 const (
-	probeServiceSuffix = ".probe"
+	probeServicePrefix = "credstore.probe."
 	probeKey           = "__probe__"
 )
 
@@ -31,7 +33,7 @@ const (
 // A positive timeout bounds the probe; on platforms where the probe runs a
 // child process (darwin), the child is killed when the timeout expires.
 func probe(serviceName string, timeout time.Duration) error {
-	service := serviceName + probeServiceSuffix
+	service := probeServicePrefix + serviceName
 	if timeout <= 0 {
 		return probeDirect(service, probeKey)
 	}

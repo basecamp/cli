@@ -28,6 +28,10 @@ type StoreOptions struct {
 	// ProbeTimeout bounds the keyring availability probe. Zero or negative
 	// means no bound, matching historical behavior. When the probe times
 	// out, the store falls back to file storage as if the probe had failed.
+	// Probing writes and removes a throwaway entry under the dedicated
+	// keyring service "credstore.probe.<ServiceName>" (account "__probe__")
+	// — a namespace reserved by this package — never under ServiceName
+	// itself, so a probe cannot touch real credentials.
 	// On darwin, removal of the throwaway probe entry runs synchronously
 	// after a successful probe with a short budget of its own, so worst-case
 	// construction there is ProbeTimeout plus that cleanup bound (five

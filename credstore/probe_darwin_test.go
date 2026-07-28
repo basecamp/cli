@@ -113,7 +113,7 @@ func TestProbeUsesIsolatedNamespace(t *testing.T) {
 	argsFile := argsStub(t)
 
 	require.NoError(t, probe("svc", 5*time.Second))
-	requireCleanupDelete(t, argsFile, "svc"+probeServiceSuffix, probeKey)
+	requireCleanupDelete(t, argsFile, probeServicePrefix+"svc", probeKey)
 }
 
 // Regression: the probe deadline expiring immediately after a successful add
