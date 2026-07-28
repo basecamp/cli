@@ -1,0 +1,20 @@
+credstore/store.go
+  s_e482278ba88739::t_7808206d144dc3 35
+  s_e482278ba88739::t_8644dd4cda05c1 44-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "bddce434cf74365df75f94ce8d71c629f129381b",
+  "prompts": {},
+  "sessions": {
+    "s_e482278ba88739": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd1b82ec-bfac-4598-92d4-84af692fce2e",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    }
+  }
+}
