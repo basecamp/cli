@@ -23,6 +23,8 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    ├── e2e/
    ├── skills/
    ├── scripts/
+   ├── .claude/
+   │   └── CLAUDE.md
    ├── .claude-plugin/
    ├── .github/
    │   ├── workflows/
@@ -74,6 +76,7 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
 
    **Docs & project config:**
    - `seed/AGENTS.md.tmpl` → `AGENTS.md` (fill in app name)
+   - `seed/.claude/CLAUDE.md` → `.claude/CLAUDE.md` (copy as-is; Claude Code reads CLAUDE.md, not AGENTS.md)
    - `seed/CONTRIBUTING.md.tmpl` → `CONTRIBUTING.md` (fill in app name)
    - `seed/API-COVERAGE.md.tmpl` → `API-COVERAGE.md` (fill in app name)
    - `seed/RELEASING.md.tmpl` → `RELEASING.md` (fill in app name, org, repo)
