@@ -15,7 +15,7 @@ surface/         CLI surface snapshots and compatibility diffing
 seed/            Templates for bootstrapping new CLIs
 actions/         Reusable GitHub Actions (rubric-check, surface-compat, sync-skills)
 skills/          Agent skills distributed via basecamp/skills
-prompts/         Agent prompts (seed-cli.md, close-gap.md)
+prompts/         Agent prompts (seed-cli.md, close-gap.md, close-input-gap.md)
 
 RUBRIC.md        37signals CLI rubric specification
 Makefile         Build and test targets
@@ -27,7 +27,7 @@ All packages import from `github.com/basecamp/cli/<package>`.
 
 | Package | Purpose |
 |---------|---------|
-| `output` | JSON response/error envelopes, 8 typed exit codes (0–8), TTY auto-detection |
+| `output` | JSON response/error envelopes, typed exit codes (see `output/codes.go`), TTY auto-detection |
 | `credstore` | System keyring with file fallback (0600); caller-configured `DisableEnvVar` forces file mode |
 | `pkce` | `GenerateVerifier()` and `GenerateChallenge()` for OAuth PKCE flows |
 | `oauthcallback` | `WaitForCallback()` starts local server, returns authorization code |
