@@ -1,0 +1,21 @@
+prompts/seed-cli.md
+  s_bbb7a13d90e0a0::t_bfb256a6840311 26-27,79
+seed/.claude/CLAUDE.md
+  s_bbb7a13d90e0a0::t_37e34da293fe33 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "b4d1bb0b12d9c761b27b9eb3bd63cb1704aff1a8",
+  "prompts": {},
+  "sessions": {
+    "s_bbb7a13d90e0a0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e55d3e3b-8450-42f4-a23c-ba16d849757e",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Jeremy Daer <jeremydaer@gmail.com>"
+    }
+  }
+}
