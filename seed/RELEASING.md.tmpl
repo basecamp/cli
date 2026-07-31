@@ -24,7 +24,7 @@ make release VERSION=0.1.0 DRY_RUN=1
    - Builds binaries for all platforms (darwin, linux, windows, freebsd, openbsd x amd64/arm64)
    - Signs checksums with cosign (keyless via Sigstore OIDC)
    - Generates SBOM for supply chain transparency
-   - Optional: AI changelog, macOS notarization, Homebrew tap, AUR publish
+   - Optional: macOS notarization, Homebrew tap, AUR publish
 
 ## Versioning
 
@@ -51,7 +51,6 @@ vars are added.
 | Security scan | always | none | on |
 | Test gate | always | none | on |
 | PGO profile | always (fallback) | none | on |
-| AI changelog | `vars.ENABLE_AI_CHANGELOG == 'true'` | `models: read` permission | off |
 | macOS notarization | `secrets.MACOS_SIGN_P12 != ''` | 5 macOS secrets | off |
 | Homebrew tap | `secrets.HOMEBREW_TAP_TOKEN != ''` | `HOMEBREW_TAP_TOKEN` | off |
 | AUR publish | `secrets.AUR_SSH_KEY != ''` | `AUR_SSH_KEY` | off |

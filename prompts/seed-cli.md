@@ -31,13 +31,8 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    │   │   ├── test.yml
    │   │   ├── security.yml
    │   │   ├── release.yml
-   │   │   ├── ai-labeler.yml
    │   │   ├── dependabot-auto-merge.yml
    │   │   └── labeler.yml
-   │   ├── prompts/
-   │   │   ├── classify-pr.prompt.yml
-   │   │   ├── detect-breaking.prompt.yml
-   │   │   └── summarize-changelog.prompt.yml
    │   ├── codeql/
    │   │   └── codeql-config.yml
    │   ├── CODEOWNERS
@@ -107,7 +102,6 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    - `seed/.github/workflows/test.yml` → `.github/workflows/test.yml` (update env vars, GOPRIVATE)
    - `seed/.github/workflows/security.yml` → `.github/workflows/security.yml`
    - `seed/.github/workflows/release.yml` → `.github/workflows/release.yml` (update env vars)
-   - `seed/.github/workflows/ai-labeler.yml` → `.github/workflows/ai-labeler.yml`
    - `seed/.github/workflows/dependabot-auto-merge.yml` → `.github/workflows/dependabot-auto-merge.yml`
    - `seed/.github/workflows/labeler.yml` → `.github/workflows/labeler.yml`
    - `seed/.github/dependabot.yml` → `.github/dependabot.yml`
@@ -116,9 +110,6 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    - `seed/.github/release.yml` → `.github/release.yml`
    - `seed/.github/labeler.yml.tmpl` → `.github/labeler.yml` (customize label rules)
    - `seed/.github/codeql/codeql-config.yml` → `.github/codeql/codeql-config.yml`
-   - `seed/.github/prompts/classify-pr.prompt.yml` → `.github/prompts/classify-pr.prompt.yml`
-   - `seed/.github/prompts/detect-breaking.prompt.yml` → `.github/prompts/detect-breaking.prompt.yml`
-   - `seed/.github/prompts/summarize-changelog.prompt.yml` → `.github/prompts/summarize-changelog.prompt.yml`
 
    **Local dev config:**
    - `seed/.pre-commit-config.yaml.tmpl` → `.pre-commit-config.yaml` (fill in env var name)
@@ -150,7 +141,6 @@ After the repo is pushed to GitHub:
    | Feature | What to configure |
    |---------|-------------------|
    | Private module access | `vars.RELEASE_CLIENT_ID` + `secrets.RELEASE_APP_PRIVATE_KEY` |
-   | AI changelog | `vars.ENABLE_AI_CHANGELOG=true` |
    | macOS notarization | 5 secrets in `release` environment |
    | Homebrew tap | `secrets.HOMEBREW_TAP_TOKEN` |
    | AUR publish | `secrets.AUR_SSH_KEY` |
