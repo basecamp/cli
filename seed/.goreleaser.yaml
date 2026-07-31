@@ -65,10 +65,6 @@ release:
   prerelease: auto
   name_template: "{{ .ProjectName }} v{{ .Version }}"
   header: |
-    {{ if .Env.RELEASE_CHANGELOG }}{{ .Env.RELEASE_CHANGELOG }}
-
-    ---
-    {{ end }}
     ### Install
 
     ```

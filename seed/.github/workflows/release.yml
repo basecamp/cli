@@ -131,7 +131,6 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-      models: read
     env:
       HAS_MACOS_SIGNING: ${{ secrets.MACOS_SIGN_P12 && 'true' || '' }}
       HAS_AUR_KEY: ${{ secrets.AUR_SSH_KEY && 'true' || '' }}
@@ -204,72 +203,6 @@ jobs:
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@17ae1740179002c89186b61233e0f892c3118b11 # v0.23.0
 
-      # Configure vars.ENABLE_AI_CHANGELOG=true plus models:read permission to enable AI changelog
-      - name: Build changelog context
-        if: vars.ENABLE_AI_CHANGELOG == 'true'
-        run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          DIFF_FILE=/tmp/diff.txt
-          if [ -z "$PREV_TAG" ]; then
-            COMMITS=$(git log --oneline --no-decorate)
-            git diff --stat 4b825dc642cb6eb9a060e54bf899d69f82a3ef17 HEAD > "$DIFF_FILE"
-          else
-            COMMITS=$(git log --oneline --no-decorate "${PREV_TAG}..HEAD")
-            git diff "${PREV_TAG}..HEAD" -- '*.go' 'go.mod' > "$DIFF_FILE"
-          fi
-          {
-            echo "Commits:"
-            echo "$COMMITS"
-            echo ""
-            echo "Diff summary:"
-            head -c 80000 "$DIFF_FILE"
-          } > /tmp/user-message.txt
-          # Splice into prompt YAML
-          python3 -c "
-          with open('.github/prompts/summarize-changelog.prompt.yml') as f:
-              lines = f.readlines()
-          with open('/tmp/user-message.txt') as f:
-              user_msg = f.read()
-          insert_at = len(lines)
-          for i, line in enumerate(lines):
-              if i == 0: continue
-              if line.strip() and not line[0].isspace():
-                  insert_at = i
-                  break
-          entry = ['  - role: user\n', '    content: |\n']
-          for ln in user_msg.splitlines():
-              entry.append('      ' + ln + '\n')
-          lines[insert_at:insert_at] = entry
-          with open('/tmp/prompt.yml', 'w') as f:
-              f.writelines(lines)
-          try:
-              import yaml
-              doc = yaml.safe_load(open('/tmp/prompt.yml'))
-              assert doc['messages'][-1]['role'] == 'user', 'prompt splice failed'
-          except ImportError:
-              pass
-          "
-        continue-on-error: true
-
-      - name: Generate AI changelog
-        if: vars.ENABLE_AI_CHANGELOG == 'true'
-        id: ai-changelog
-        uses: actions/ai-inference@e09e65981758de8b2fdab13c2bfb7c7d5493b0b6 # v2.0.7
-        continue-on-error: true
-        with:
-          prompt-file: /tmp/prompt.yml
-
-      - name: Set changelog path
-        id: changelog
-        if: vars.ENABLE_AI_CHANGELOG == 'true'
-        env:
-          RESPONSE_FILE: ${{ steps.ai-changelog.outputs.response-file }}
-        run: |
-          if [ -n "$RESPONSE_FILE" ] && [ -f "$RESPONSE_FILE" ]; then
-            sed -i '/^```\(markdown\)\?$/d' "$RESPONSE_FILE"
-            echo "file=$RESPONSE_FILE" >> "$GITHUB_OUTPUT"
-          fi
-
       # Configure secrets.MACOS_SIGN_P12 (plus MACOS_SIGN_PASSWORD, MACOS_NOTARY_KEY,
       # MACOS_NOTARY_KEY_ID, MACOS_NOTARY_ISSUER_ID) to enable macOS notarization
       - name: Verify macOS signing secrets
@@ -302,7 +235,6 @@ jobs:
 
       - name: Run GoReleaser
         env:
-          CHANGELOG_FILE: ${{ steps.changelog.outputs.file }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ steps.sdk-token.outputs.token }}
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
@@ -310,13 +242,7 @@ jobs:
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
-        run: |
-          RELEASE_CHANGELOG=""
-          if [ -n "$CHANGELOG_FILE" ] && [ -f "$CHANGELOG_FILE" ]; then
-            RELEASE_CHANGELOG=$(cat "$CHANGELOG_FILE")
-          fi
-          export RELEASE_CHANGELOG
-          goreleaser release --clean
+        run: goreleaser release --clean
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
