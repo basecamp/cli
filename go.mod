@@ -1,6 +1,6 @@
 module github.com/basecamp/cli
 
-go 1.26
+go 1.26.7
 
 require (
 	github.com/spf13/cobra v1.10.2
