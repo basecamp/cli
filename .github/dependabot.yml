@@ -27,7 +27,13 @@ updates:
 
   # GitHub Actions
   - package-ecosystem: github-actions
-    directory: "/"
+    # The seed workflows are copied verbatim into every generated CLI
+    # (prompts/seed-cli.md), so they need updating like any other workflow.
+    # For github-actions a non-root entry is scanned directly for *.yml, so the
+    # path is the workflows directory itself rather than the tree above it.
+    directories:
+      - "/"
+      - "/seed/.github/workflows"
     schedule:
       interval: weekly
       day: monday
