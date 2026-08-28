@@ -25,6 +25,12 @@ var securityPath = "/usr/bin/security"
 // documents this additive bound.
 const probeCleanupTimeout = 5 * time.Second
 
+// errSecDuplicateItem marks a `security` failure that proves the keychain is
+// alive: the OSStatus for "item already exists", printed by `security -i` as
+// "add-generic-password: returned -25299". Matched numerically — the code is
+// ABI-stable where the prose message is not.
+const errSecDuplicateItem = "-25299"
+
 // probeBounded mirrors go-keyring's darwin Set — `security -i` fed an
 // add-generic-password command over stdin — via exec.CommandContext so the
 // child is killed when ctx expires. go-keyring's own exec has no
@@ -39,11 +45,20 @@ func probeBounded(ctx context.Context, serviceName, key string) error {
 
 	cmd := exec.CommandContext(ctx, securityPath, "-i")
 	cmd.Stdin = strings.NewReader(command)
-	if err := cmd.Run(); err != nil {
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return err
+		// errSecDuplicateItem is availability, not failure: add -U is
+		// find-then-create inside `security`, and a concurrent probe's
+		// delete/add on the shared fixed-name entry can interleave so the
+		// create loses to a duplicate (see the probeKey comment). The
+		// keychain answered — it is responsive and usable. Fall through to
+		// cleanup, which removes whichever entry won.
+		if !strings.Contains(string(out), errSecDuplicateItem) {
+			return err
+		}
 	}
 
 	afterProbeAdd()
