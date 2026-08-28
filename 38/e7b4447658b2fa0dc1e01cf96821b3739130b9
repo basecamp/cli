@@ -1,0 +1,25 @@
+credstore/probe.go
+  s_cb8638fd4deb07::t_6c0888e32ef9a5 88-91,94
+credstore/probe_darwin.go
+  s_cb8638fd4deb07::t_a5a8b6ae311777 6,78-110
+credstore/probe_darwin_test.go
+  s_cb8638fd4deb07::t_1bc904c053f62c 6,180-204
+credstore/probe_other.go
+  s_cb8638fd4deb07::t_b6028121b47204 25-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "38e7b4447658b2fa0dc1e01cf96821b3739130b9",
+  "prompts": {},
+  "sessions": {
+    "s_cb8638fd4deb07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7799bc4b-8db5-43d6-af8e-1895e0ebc853",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremy@37signals.com>"
+    }
+  }
+}
