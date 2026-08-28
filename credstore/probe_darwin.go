@@ -3,6 +3,7 @@ package credstore
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -72,6 +73,39 @@ func securityError(out []byte, err error) error {
 		return err
 	}
 	return fmt.Errorf("%s (%w)", diagnostic, err)
+}
+
+// securityExitReasons names the keychain failures go-keyring's darwin Set
+// can surface, by exit status. go-keyring returns cmd.Wait()'s bare "exit
+// status N" and discards security's own diagnostic line, and the unbounded
+// probe — every session with a terminal — goes through go-keyring, so
+// without this an interactive user's fallback read "exit status 36" where
+// the bounded (headless) probe's reads "User interaction is not allowed."
+// security exits with the low byte of the SecBase.h OSStatus, so the codes
+// are stable; the text is what `security error <OSStatus>` prints.
+var securityExitReasons = map[int]string{
+	36:  "User interaction is not allowed.",                                 // errSecInteractionNotAllowed (-25308)
+	37:  "A default keychain could not be found.",                           // errSecNoDefaultKeychain (-25307)
+	45:  "The specified item already exists in the keychain.",               // errSecDuplicateItem (-25299)
+	50:  "The specified keychain could not be found.",                       // errSecNoSuchKeychain (-25294)
+	51:  "The user name or passphrase you entered is not correct.",          // errSecAuthFailed (-25293)
+	52:  "This keychain cannot be modified.",                                // errSecReadOnly (-25292)
+	53:  "No keychain is available. You may need to restart your computer.", // errSecNotAvailable (-25291)
+	128: "User canceled the operation.",                                     // errSecUserCanceled (-128)
+}
+
+// keyringError folds the security tool's reason into a go-keyring exit
+// error, in the same shape securityError gives the bounded path. Any other
+// error — an exit status with no keychain meaning, or no exit at all —
+// passes through unchanged rather than being given an invented reason.
+func keyringError(err error) error {
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		if reason, ok := securityExitReasons[exit.ExitCode()]; ok {
+			return fmt.Errorf("%s (%w)", reason, err)
+		}
+	}
+	return err
 }
 
 var securityArgUnsafe = regexp.MustCompile(`[^\w@%+=:,./-]`)

@@ -22,3 +22,7 @@ func probeBounded(ctx context.Context, serviceName, key string) error {
 		return ctx.Err()
 	}
 }
+
+// keyringError passes a go-keyring failure through: non-darwin backends run
+// in-process and their errors already name the failure.
+func keyringError(err error) error { return err }

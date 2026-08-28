@@ -85,10 +85,13 @@ func probe(serviceName string, timeout time.Duration) error {
 	return err
 }
 
-// probeDirect probes via go-keyring, which has no cancellation path.
+// probeDirect probes via go-keyring, which has no cancellation path. Its
+// failure is named by the platform (keyringError) so the unbounded path's
+// reason reads as well as the bounded path's: on darwin go-keyring returns
+// a bare "exit status N" with the security tool's diagnostic discarded.
 func probeDirect(serviceName, key string) error {
 	if err := keyringSet(serviceName, key, "probe"); err != nil {
-		return err
+		return keyringError(err)
 	}
 	_ = keyringDelete(serviceName, key)
 	return nil

@@ -3,6 +3,7 @@ package credstore
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -174,6 +175,31 @@ func TestProbeBoundedFailureCarriesDiagnostic(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
 	require.Len(t, lines, 1, "failed probe must not attempt cleanup")
 	assert.Equal(t, "-i", lines[0])
+}
+
+// Regression: go-keyring's darwin Set returns cmd.Wait()'s bare "exit
+// status 36" with security's diagnostic discarded, so the unbounded probe —
+// the interactive path — explained its fallback with a number where the
+// bounded probe gave the reason. The exit status must be named the same way.
+func TestProbeDirectNamesSecurityExitStatus(t *testing.T) {
+	exit36 := exec.Command("/bin/sh", "-c", "exit 36").Run()
+	require.Error(t, exit36)
+	recordKeyringOps(t, exit36)
+
+	err := probe("svc", 0)
+	assert.ErrorIs(t, err, exit36)
+	assert.EqualError(t, err, "User interaction is not allowed. (exit status 36)")
+}
+
+// An exit status with no keychain meaning passes through unchanged rather
+// than being given an invented reason. (A non-exit error is covered by
+// TestProbeDirectFailureSkipsCleanup.)
+func TestProbeDirectPassesUnknownExitStatusThrough(t *testing.T) {
+	exit3 := exec.Command("/bin/sh", "-c", "exit 3").Run()
+	require.Error(t, exit3)
+	recordKeyringOps(t, exit3)
+
+	assert.Same(t, exit3, probe("svc", 0))
 }
 
 func TestQuoteSecurityArg(t *testing.T) {
