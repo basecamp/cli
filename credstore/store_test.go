@@ -101,6 +101,27 @@ func TestForceFileSkipsProbe(t *testing.T) {
 	assert.JSONEq(t, `{"token":"abc123"}`, string(data))
 }
 
+// A healthy probe keeps the keyring: the store uses it, reports no probe
+// error, and has nothing to warn about. Zero-value options probe unbounded
+// — the timeout reaches the probe as zero — which is the documented contract
+// for tests that mock the keyring (see StoreOptions.ProbeTimeout).
+func TestHealthyProbeUsesKeyring(t *testing.T) {
+	probed := false
+	stubProbe(t, func(serviceName string, timeout time.Duration) error {
+		probed = true
+		assert.Equal(t, "test", serviceName)
+		assert.Zero(t, timeout)
+		return nil
+	})
+
+	store := NewStore(StoreOptions{ServiceName: "test", FallbackDir: t.TempDir()})
+
+	assert.True(t, probed)
+	assert.True(t, store.UsingKeyring())
+	assert.NoError(t, store.ProbeError())
+	assert.Empty(t, store.FallbackWarning())
+}
+
 func TestProbeTimeoutFallsBackToFile(t *testing.T) {
 	dir := t.TempDir()
 	stubProbe(t, func(serviceName string, timeout time.Duration) error {
