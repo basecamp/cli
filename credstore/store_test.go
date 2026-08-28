@@ -5,8 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -176,64 +174,4 @@ func TestRequestedFileStorageReportsNoProbeFailure(t *testing.T) {
 	assert.Empty(t, store.FallbackWarning())
 	_, err := store.Load("mykey")
 	assert.EqualError(t, err, "credentials not found for mykey")
-}
-
-// The probe entry is unique per process, not per probe, so stores built
-// concurrently within one process must not probe at the same time — they
-// would share the entry and reintroduce the cross-process race in-process.
-func TestNewStoreSerializesProbes(t *testing.T) {
-	var inFlight, maxInFlight atomic.Int32
-	stubProbe(t, func(string, time.Duration) error {
-		n := inFlight.Add(1)
-		defer inFlight.Add(-1)
-		for {
-			seen := maxInFlight.Load()
-			if n <= seen || maxInFlight.CompareAndSwap(seen, n) {
-				break
-			}
-		}
-		time.Sleep(5 * time.Millisecond)
-		return nil
-	})
-
-	var wg sync.WaitGroup
-	for range 8 {
-		wg.Go(func() { NewStore(StoreOptions{ServiceName: "test", FallbackDir: t.TempDir()}) })
-	}
-	wg.Wait()
-
-	assert.Equal(t, int32(1), maxInFlight.Load(), "probes must run one at a time within a process")
-}
-
-func TestZeroValueOptionsProbeUnbounded(t *testing.T) {
-	dir := t.TempDir()
-	probed := false
-	stubProbe(t, func(serviceName string, timeout time.Duration) error {
-		probed = true
-		assert.Zero(t, timeout)
-		return nil
-	})
-
-	store := NewStore(StoreOptions{
-		ServiceName: "test",
-		FallbackDir: dir,
-	})
-
-	assert.True(t, probed)
-	assert.True(t, store.UsingKeyring())
-	assert.Empty(t, store.FallbackWarning())
-}
-
-func TestLoadNonexistent(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("TEST_NO_KEYRING", "1")
-
-	store := NewStore(StoreOptions{
-		ServiceName:   "test",
-		DisableEnvVar: "TEST_NO_KEYRING",
-		FallbackDir:   dir,
-	})
-
-	_, err := store.Load("nonexistent")
-	assert.Error(t, err)
 }

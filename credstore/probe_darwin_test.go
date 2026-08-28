@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -109,13 +110,19 @@ func TestProbeBoundedSuccess(t *testing.T) {
 
 // The probe must operate in its own service namespace so it can never touch
 // a credential in the caller's real service, whatever its name — and under
-// its own per-process account, so concurrent invocations never contend for
-// one keychain item (see probeKey).
-func TestProbeUsesIsolatedPerProcessEntry(t *testing.T) {
+// its own per-probe account, so concurrent probes never contend for one
+// keychain item (see probeKey).
+func TestProbeUsesIsolatedPerProbeEntry(t *testing.T) {
 	argsFile := argsStub(t)
 
 	require.NoError(t, probe("svc", 5*time.Second))
-	requireCleanupDelete(t, argsFile, probeServicePrefix+"svc", "__probe__."+strconv.Itoa(os.Getpid()))
+
+	raw, err := os.ReadFile(argsFile)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	require.Len(t, lines, 2, "probe should add then delete the probe entry")
+	assert.Equal(t, "-i", lines[0])
+	assert.Regexp(t, "^delete-generic-password -s "+regexp.QuoteMeta(probeServicePrefix+"svc")+" -a "+probeKeyPattern()[1:], lines[1])
 }
 
 // A probe that hits its bound must say so: the reason reaches users through

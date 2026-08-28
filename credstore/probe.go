@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -21,31 +20,32 @@ var probeKeyring = probe
 // touches the caller's real service and a colliding consumer would have to
 // deliberately adopt this package's declared namespace.
 //
-// Within that namespace the account is per process: probeKeyPrefix plus the
-// pid. Concurrent invocations must never share a keychain item, because on
-// darwin `security add-generic-password -U` is find-then-create inside the
-// security tool, and a peer's delete/add landing in that window fails the
-// add with errSecDuplicateItem on a perfectly healthy keychain — twenty
-// concurrent probes of one shared item lost 190 of 200. Distinct pids give
-// each in-flight process its own item, and NewStore serializes probes within
-// a process (probeMu), so no two probes ever touch the same entry.
+// Within that namespace the account is per probe: probeKeyPrefix, the pid,
+// and an in-process sequence number. Concurrent probes must never share a
+// keychain item, because on darwin `security add-generic-password -U` is
+// find-then-create inside the security tool, and a peer's delete/add
+// landing in that window fails the add with errSecDuplicateItem on a
+// perfectly healthy keychain — twenty concurrent probes of one shared item
+// lost 190 of 200. Distinct pids separate processes; the sequence number
+// separates probes within a process, including one still running after its
+// bounded wait gave up (non-darwin abandons the worker goroutine) from any
+// probe started later. No two probes ever touch the same entry.
 //
-// The account is still deterministic for a given pid rather than random:
-// go-keyring has no list API, so an entry leaked by an abandoned probe (a
-// timed-out probe whose blocked Set completes after the process exits, or a
-// darwin cleanup cut short) would be permanently unfindable under a random
-// name. Under the pid-derived name, the next process to reuse that pid
-// overwrites the leftover with its own probe and removes it — leaks still
-// self-heal, on pid reuse instead of on the very next run.
+// The account is still deterministic rather than random: go-keyring has no
+// list API, so an entry leaked by an abandoned probe (a timed-out probe
+// whose blocked Set completes after the process exits, or a darwin cleanup
+// cut short) would be permanently unfindable under a random name. Under
+// the pid-and-sequence name, the next process to reuse that pid overwrites
+// the leftover with its own same-numbered probe — the first, in practice,
+// since a process probes once — and removes it. Leaks still self-heal, on
+// pid reuse instead of on the very next run.
 const (
 	probeServicePrefix = "credstore.probe."
 	probeKeyPrefix     = "__probe__."
 )
 
-// probeMu serializes probes within a process. The probe account is unique
-// per process, not per probe, so two stores constructed concurrently in one
-// process would otherwise share an item and reintroduce the race above.
-var probeMu sync.Mutex
+// probeSeq numbers this process's probes so no two share an account.
+var probeSeq atomic.Uint64
 
 // keyring operations, extracted as vars so tests can observe the entry
 // probeDirect writes and removes without a live keyring.
@@ -59,9 +59,9 @@ func probeService(serviceName string) string {
 	return probeServicePrefix + serviceName
 }
 
-// probeKey derives this process's probe account.
+// probeKey derives a fresh probe account for this process.
 func probeKey() string {
-	return probeKeyPrefix + strconv.Itoa(os.Getpid())
+	return fmt.Sprintf("%s%d.%d", probeKeyPrefix, os.Getpid(), probeSeq.Add(1))
 }
 
 // probe writes and removes a throwaway keyring entry to check availability.

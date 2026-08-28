@@ -29,10 +29,10 @@ type StoreOptions struct {
 	// out, the store falls back to file storage as if the probe had failed.
 	// Probing writes and removes a throwaway entry under the dedicated
 	// keyring service "credstore.probe.<ServiceName>" (account
-	// "__probe__.<pid>") — a namespace reserved by this package — never
+	// "__probe__.<pid>.<n>") — a namespace reserved by this package — never
 	// under ServiceName itself, so a probe cannot touch real credentials.
-	// The account is per process so concurrent invocations never contend
-	// for one keychain item, and probes within a process are serialized.
+	// The account is unique per probe, so concurrent invocations never
+	// contend for one keychain item.
 	//
 	// On darwin, removal of the throwaway probe entry runs synchronously
 	// after a successful probe with a short budget of its own, so worst-case
@@ -75,10 +75,7 @@ func NewStore(opts StoreOptions) *Store {
 		return &Store{serviceName: opts.ServiceName, useKeyring: false, fallbackDir: opts.FallbackDir}
 	}
 
-	probeMu.Lock()
 	err := probeKeyring(opts.ServiceName, opts.ProbeTimeout)
-	probeMu.Unlock()
-
 	return &Store{
 		serviceName: opts.ServiceName,
 		useKeyring:  err == nil,
