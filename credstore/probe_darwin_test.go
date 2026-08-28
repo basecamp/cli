@@ -133,6 +133,47 @@ func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	requireCleanupDelete(t, argsFile, "test", "__probe_expiry")
 }
 
+// Regression: two concurrent CLI invocations probe the same fixed-name
+// entry, and `add-generic-password -U` is find-then-create inside
+// `security` — a peer's delete/add interleaving makes the losing add fail
+// with errSecDuplicateItem (-25299) on a perfectly healthy keychain. That
+// answer proves availability; treating it as failure silently degraded the
+// loser to the file fallback, which reports "credentials not found" for
+// profiles whose tokens sit in the keychain.
+func TestProbeBoundedDuplicateItemMeansAvailable(t *testing.T) {
+	argsFile := filepath.Join(stubDir(t), "args")
+	// The add (`security -i`) loses the duplicate race; the cleanup delete
+	// succeeds, removing whichever probe entry won.
+	stubSecurity(t, "#!/bin/sh\nAF="+shQuote(argsFile)+"\necho \"$@\" >> \"$AF\"\n"+
+		"if [ \"$1\" = -i ]; then\ncat > /dev/null\necho 'add-generic-password: returned -25299'\n"+
+		"echo 'security: SecKeychainItemCreateFromContent (<default>): The specified item already exists in the keychain.' >&2\nexit 45\nfi\nexit 0\n")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, probeBounded(ctx, "test", "__probe_dup"))
+	requireCleanupDelete(t, argsFile, "test", "__probe_dup")
+}
+
+// Any other add failure still reports the keyring unavailable, and cleanup
+// is not attempted.
+func TestProbeBoundedNonDuplicateFailureStillFails(t *testing.T) {
+	argsFile := filepath.Join(stubDir(t), "args")
+	stubSecurity(t, "#!/bin/sh\nAF="+shQuote(argsFile)+"\necho \"$@\" >> \"$AF\"\ncat > /dev/null\n"+
+		"echo 'security: SecKeychainItemCreateFromContent (<default>): User interaction is not allowed.' >&2\nexit 36\n")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.Error(t, probeBounded(ctx, "test", "__probe_fail"))
+
+	raw, err := os.ReadFile(argsFile)
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	require.Len(t, lines, 1, "failed probe must not attempt cleanup")
+	assert.Equal(t, "-i", lines[0])
+}
+
 func TestQuoteSecurityArg(t *testing.T) {
 	assert.Equal(t, "basecamp", quoteSecurityArg("basecamp"))
 	assert.Equal(t, "''", quoteSecurityArg(""))
