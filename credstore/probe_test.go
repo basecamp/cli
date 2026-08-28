@@ -40,27 +40,45 @@ func stubKeyringOps(t *testing.T, set func(string, string, string) error, get fu
 
 // Regression: concurrent probes share one fixed-name entry, and a losing
 // write (darwin surfaces errSecDuplicateItem through go-keyring as a bare
-// exit error) must not demote a healthy keyring to the file fallback. A
-// keyring that answers the disambiguating read — entry present or cleanly
-// absent — is available.
-func TestProbeDirectWriteRaceDisambiguatedByRead(t *testing.T) {
+// exit error) must not demote a healthy keyring to the file fallback.
+// Recovery requires fresh write evidence — this process's retry landing, or
+// a peer's completed write sitting in the keyring — never a bare read
+// answer, which a read-only keyring could also give.
+func TestProbeDirectWriteRaceRecovery(t *testing.T) {
 	setErr := errors.New("exit status 45")
 
-	t.Run("peer's probe entry still present", func(t *testing.T) {
+	t.Run("retry lands once the churned entry settles", func(t *testing.T) {
+		calls := 0
+		deleted := stubKeyringOps(t,
+			func(_, _, _ string) error {
+				calls++
+				if calls == 1 {
+					return setErr
+				}
+				return nil
+			},
+			func(_, _ string) (string, error) { t.Fatal("no read needed when the retry lands"); return "", nil })
+
+		assert.NoError(t, probeDirect("credstore.probe.svc", probeKey))
+		assert.Equal(t, 2, calls)
+		assert.True(t, *deleted, "cleanup should remove the retried entry")
+	})
+
+	t.Run("retry loses too but the peer's write is present", func(t *testing.T) {
 		deleted := stubKeyringOps(t,
 			func(_, _, _ string) error { return setErr },
 			func(_, _ string) (string, error) { return "probe", nil })
 
 		assert.NoError(t, probeDirect("credstore.probe.svc", probeKey))
-		assert.True(t, *deleted, "cleanup should remove whichever probe entry won")
+		assert.True(t, *deleted, "cleanup should remove the peer's entry")
 	})
 
-	t.Run("peer already cleaned up", func(t *testing.T) {
+	t.Run("read-only keyring: writes fail, probe entry absent", func(t *testing.T) {
 		stubKeyringOps(t,
 			func(_, _, _ string) error { return setErr },
 			func(_, _ string) (string, error) { return "", keyring.ErrNotFound })
 
-		assert.NoError(t, probeDirect("credstore.probe.svc", probeKey))
+		assert.ErrorIs(t, probeDirect("credstore.probe.svc", probeKey), setErr)
 	})
 
 	t.Run("keyring fails the read too: genuinely unavailable", func(t *testing.T) {

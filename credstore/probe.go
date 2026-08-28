@@ -2,7 +2,6 @@ package credstore
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -28,10 +27,10 @@ var probeKeyring = probe
 // can fail too: `security add-generic-password -U` is find-then-create
 // inside the security tool, so a peer's delete/add interleaving surfaces
 // errSecDuplicateItem even though the keychain is healthy. Every probe
-// therefore treats a failed write against evidence of a responsive keyring
-// (a duplicate-item error, or a read the keyring answers) as availability,
-// not as grounds for the file fallback — see probeDirect and the darwin
-// probeBounded.
+// therefore treats a lost write race backed by write evidence — a
+// duplicate-item error, a successful retry, or the peer's completed write —
+// as availability, not as grounds for the file fallback; see probeDirect
+// and the darwin probeBounded.
 const (
 	probeServicePrefix = "credstore.probe."
 	probeKey           = "__probe__"
@@ -72,18 +71,28 @@ func probe(serviceName string, timeout time.Duration) error {
 // one fixed-name entry, and on darwin a peer's delete/add interleaving makes
 // the write lose with errSecDuplicateItem (see the probeKey comment). The
 // write error alone cannot be classified — go-keyring returns a bare exit
-// error with no output — so disambiguate with a read: a keyring that
-// answers Get, with the entry present (the peer's probe) or cleanly absent
-// (ErrNotFound — the peer already cleaned up), is demonstrably responsive
-// and usable. Only a keyring that fails both the write and the read is
-// reported unavailable.
+// error with no output — so recovery demands fresh evidence the keyring
+// accepts writes, never a mere read answer (a read-only keyring cleanly
+// misses a Get of the absent probe entry, and reporting it available would
+// break every later Save). Two forms of write evidence qualify:
+//
+//   - An immediate retry of the Set succeeds — the contended entry has
+//     settled (present, so darwin's -U updates in place; absent, so a plain
+//     create lands) and this process demonstrably wrote.
+//   - The retry also loses, but Get finds the entry — a peer process of the
+//     same uid completed exactly this write moments ago, which is what
+//     sustained churn from concurrent probes looks like.
+//
+// A keyring that fails both writes and cannot show a peer's is reported
+// unavailable with the original write error.
 func probeDirect(serviceName, key string) error {
-	if err := keyringSet(serviceName, key, "probe"); err != nil {
-		if _, getErr := keyringGet(serviceName, key); getErr == nil || errors.Is(getErr, keyring.ErrNotFound) {
-			_ = keyringDelete(serviceName, key)
-			return nil
+	err := keyringSet(serviceName, key, "probe")
+	if err != nil {
+		if retryErr := keyringSet(serviceName, key, "probe"); retryErr != nil {
+			if _, getErr := keyringGet(serviceName, key); getErr != nil {
+				return err
+			}
 		}
-		return err
 	}
 	_ = keyringDelete(serviceName, key)
 	return nil
