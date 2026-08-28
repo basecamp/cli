@@ -108,12 +108,25 @@ func TestProbeBoundedSuccess(t *testing.T) {
 }
 
 // The probe must operate in its own service namespace so it can never touch
-// a credential in the caller's real service, whatever its name.
-func TestProbeUsesIsolatedNamespace(t *testing.T) {
+// a credential in the caller's real service, whatever its name — and under
+// its own per-process account, so concurrent invocations never contend for
+// one keychain item (see probeKey).
+func TestProbeUsesIsolatedPerProcessEntry(t *testing.T) {
 	argsFile := argsStub(t)
 
 	require.NoError(t, probe("svc", 5*time.Second))
-	requireCleanupDelete(t, argsFile, probeServicePrefix+"svc", probeKey)
+	requireCleanupDelete(t, argsFile, probeServicePrefix+"svc", "__probe__."+strconv.Itoa(os.Getpid()))
+}
+
+// A probe that hits its bound must say so: the reason reaches users through
+// the fallback warning and Load errors, where a bare "context deadline
+// exceeded" explains nothing.
+func TestProbeTimeoutIsNamed(t *testing.T) {
+	stubSecurity(t, "#!/bin/sh\nexec sleep 60\n")
+
+	err := probe("svc", 20*time.Millisecond)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.ErrorContains(t, err, "keyring probe timed out after 20ms")
 }
 
 // Regression: the probe deadline expiring immediately after a successful add
@@ -133,31 +146,10 @@ func TestProbeBoundedCleanupSurvivesProbeExpiry(t *testing.T) {
 	requireCleanupDelete(t, argsFile, "test", "__probe_expiry")
 }
 
-// Regression: two concurrent CLI invocations probe the same fixed-name
-// entry, and `add-generic-password -U` is find-then-create inside
-// `security` — a peer's delete/add interleaving makes the losing add fail
-// with errSecDuplicateItem (-25299) on a perfectly healthy keychain. That
-// answer proves availability; treating it as failure silently degraded the
-// loser to the file fallback, which reports "credentials not found" for
-// profiles whose tokens sit in the keychain.
-func TestProbeBoundedDuplicateItemMeansAvailable(t *testing.T) {
-	argsFile := filepath.Join(stubDir(t), "args")
-	// The add (`security -i`) loses the duplicate race; the cleanup delete
-	// succeeds, removing whichever probe entry won.
-	stubSecurity(t, "#!/bin/sh\nAF="+shQuote(argsFile)+"\necho \"$@\" >> \"$AF\"\n"+
-		"if [ \"$1\" = -i ]; then\ncat > /dev/null\necho 'add-generic-password: returned -25299'\n"+
-		"echo 'security: SecKeychainItemCreateFromContent (<default>): The specified item already exists in the keychain.' >&2\nexit 45\nfi\nexit 0\n")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	require.NoError(t, probeBounded(ctx, "test", "__probe_dup"))
-	requireCleanupDelete(t, argsFile, "test", "__probe_dup")
-}
-
-// Any other add failure still reports the keyring unavailable, and cleanup
-// is not attempted.
-func TestProbeBoundedNonDuplicateFailureStillFails(t *testing.T) {
+// A failed add reports the keyring unavailable with the security tool's own
+// diagnostic folded in — that reason is what users see when the store
+// explains its fallback — and cleanup is not attempted.
+func TestProbeBoundedFailureCarriesDiagnostic(t *testing.T) {
 	argsFile := filepath.Join(stubDir(t), "args")
 	stubSecurity(t, "#!/bin/sh\nAF="+shQuote(argsFile)+"\necho \"$@\" >> \"$AF\"\ncat > /dev/null\n"+
 		"echo 'security: SecKeychainItemCreateFromContent (<default>): User interaction is not allowed.' >&2\nexit 36\n")
@@ -165,7 +157,10 @@ func TestProbeBoundedNonDuplicateFailureStillFails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	require.Error(t, probeBounded(ctx, "test", "__probe_fail"))
+	err := probeBounded(ctx, "test", "__probe_fail")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "User interaction is not allowed.")
+	assert.ErrorContains(t, err, "exit status 36")
 
 	raw, err := os.ReadFile(argsFile)
 	require.NoError(t, err)

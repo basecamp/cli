@@ -2,99 +2,62 @@ package credstore
 
 import (
 	"errors"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/zalando/go-keyring"
 )
 
-// Pins the leak-containment contract on every platform, not just darwin: a
-// probe abandoned mid-flight (a timed-out non-darwin probe whose blocked Set
-// completes after process exit, or a darwin cleanup cut short) can leave at
-// most the one known entry — deterministic account, reserved service — which
-// the next probe's Set overwrites and Delete removes. The names below are
-// publicly documented on StoreOptions.ProbeTimeout; changing either breaks
-// self-healing across versions and orphans entries written by earlier
-// releases.
-func TestProbeContractIsDeterministicAndReserved(t *testing.T) {
+// Pins the probe-entry contract on every platform, not just darwin.
+//
+// Per process: concurrent invocations must never share a keychain item —
+// on darwin `add-generic-password -U` is find-then-create, and a peer's
+// delete/add landing in that window fails the add with errSecDuplicateItem
+// on a healthy keychain, silently demoting the loser to the file fallback.
+//
+// Deterministic for a pid, not random: a probe abandoned mid-flight can
+// leave at most one entry — this account, reserved service — which the next
+// process reusing the pid overwrites and removes. The names are publicly
+// documented on StoreOptions.ProbeTimeout.
+func TestProbeContractIsPerProcessAndReserved(t *testing.T) {
 	assert.Equal(t, "credstore.probe.svc", probeService("svc"))
-	assert.Equal(t, "__probe__", probeKey)
+	assert.Equal(t, "__probe__."+strconv.Itoa(os.Getpid()), probeKey())
 }
 
-// stubKeyringOps replaces probeDirect's keyring operations for one test.
-// go-keyring's mock cannot fail Set while answering Get, which is exactly
-// the shape of the concurrent-probe write race.
-func stubKeyringOps(t *testing.T, set func(string, string, string) error, get func(string, string) (string, error)) (deleted *bool) {
+// recordKeyringOps replaces probeDirect's keyring operations for one test,
+// recording the entry each touched.
+func recordKeyringOps(t *testing.T, setErr error) (set, deleted *[2]string) {
 	t.Helper()
-	deleted = new(bool)
-	restoreSet, restoreGet, restoreDelete := keyringSet, keyringGet, keyringDelete
-	keyringSet = set
-	keyringGet = get
+	set, deleted = new([2]string), new([2]string)
+	restoreSet, restoreDelete := keyringSet, keyringDelete
+	keyringSet = func(service, key, _ string) error {
+		*set = [2]string{service, key}
+		return setErr
+	}
 	keyringDelete = func(service, key string) error {
-		*deleted = true
+		*deleted = [2]string{service, key}
 		return nil
 	}
-	t.Cleanup(func() { keyringSet, keyringGet, keyringDelete = restoreSet, restoreGet, restoreDelete })
-	return deleted
+	t.Cleanup(func() { keyringSet, keyringDelete = restoreSet, restoreDelete })
+	return set, deleted
 }
 
-// Regression: concurrent probes share one fixed-name entry, and a losing
-// write (darwin surfaces errSecDuplicateItem through go-keyring as a bare
-// exit error) must not demote a healthy keyring to the file fallback.
-// Recovery requires fresh write evidence — this process's retry landing, or
-// a peer's completed write sitting in the keyring — never a bare read
-// answer, which a read-only keyring could also give.
-func TestProbeDirectWriteRaceRecovery(t *testing.T) {
-	setErr := errors.New("exit status 45")
+// The unbounded probe goes through go-keyring rather than the security
+// binary, so it must derive the same per-process entry as the bounded one:
+// a fixed account on either path would put that path back in the race.
+func TestProbeDirectUsesPerProcessEntry(t *testing.T) {
+	set, deleted := recordKeyringOps(t, nil)
 
-	t.Run("retry lands once the churned entry settles", func(t *testing.T) {
-		calls := 0
-		deleted := stubKeyringOps(t,
-			func(_, _, _ string) error {
-				calls++
-				if calls == 1 {
-					return setErr
-				}
-				return nil
-			},
-			func(_, _ string) (string, error) { t.Fatal("no read needed when the retry lands"); return "", nil })
-
-		assert.NoError(t, probeDirect("credstore.probe.svc", probeKey))
-		assert.Equal(t, 2, calls)
-		assert.True(t, *deleted, "cleanup should remove the retried entry")
-	})
-
-	t.Run("retry loses too but the peer's write is present", func(t *testing.T) {
-		deleted := stubKeyringOps(t,
-			func(_, _, _ string) error { return setErr },
-			func(_, _ string) (string, error) { return "probe", nil })
-
-		assert.NoError(t, probeDirect("credstore.probe.svc", probeKey))
-		assert.True(t, *deleted, "cleanup should remove the peer's entry")
-	})
-
-	t.Run("read-only keyring: writes fail, probe entry absent", func(t *testing.T) {
-		stubKeyringOps(t,
-			func(_, _, _ string) error { return setErr },
-			func(_, _ string) (string, error) { return "", keyring.ErrNotFound })
-
-		assert.ErrorIs(t, probeDirect("credstore.probe.svc", probeKey), setErr)
-	})
-
-	t.Run("keyring fails the read too: genuinely unavailable", func(t *testing.T) {
-		stubKeyringOps(t,
-			func(_, _, _ string) error { return setErr },
-			func(_, _ string) (string, error) { return "", errors.New("no keyring provider") })
-
-		assert.ErrorIs(t, probeDirect("credstore.probe.svc", probeKey), setErr)
-	})
+	assert.NoError(t, probe("svc", 0))
+	assert.Equal(t, [2]string{"credstore.probe.svc", probeKey()}, *set)
+	assert.Equal(t, *set, *deleted, "cleanup should remove exactly the entry the probe wrote")
 }
 
-func TestProbeDirectSuccessCleansUp(t *testing.T) {
-	deleted := stubKeyringOps(t,
-		func(_, _, _ string) error { return nil },
-		func(_, _ string) (string, error) { t.Fatal("no read needed when the write succeeds"); return "", nil })
+func TestProbeDirectFailureSkipsCleanup(t *testing.T) {
+	setErr := errors.New("no keyring provider")
+	_, deleted := recordKeyringOps(t, setErr)
 
-	assert.NoError(t, probeDirect("credstore.probe.svc", probeKey))
-	assert.True(t, *deleted)
+	assert.ErrorIs(t, probe("svc", 0), setErr)
+	assert.Zero(t, *deleted, "a failed write has nothing to clean up")
 }

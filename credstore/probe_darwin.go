@@ -25,12 +25,6 @@ var securityPath = "/usr/bin/security"
 // documents this additive bound.
 const probeCleanupTimeout = 5 * time.Second
 
-// errSecDuplicateItem marks a `security` failure that proves the keychain is
-// alive: the OSStatus for "item already exists", printed by `security -i` as
-// "add-generic-password: returned -25299". Matched numerically — the code is
-// ABI-stable where the prose message is not.
-const errSecDuplicateItem = "-25299"
-
 // probeBounded mirrors go-keyring's darwin Set — `security -i` fed an
 // add-generic-password command over stdin — via exec.CommandContext so the
 // child is killed when ctx expires. go-keyring's own exec has no
@@ -50,15 +44,7 @@ func probeBounded(ctx context.Context, serviceName, key string) error {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		// errSecDuplicateItem is availability, not failure: add -U is
-		// find-then-create inside `security`, and a concurrent probe's
-		// delete/add on the shared fixed-name entry can interleave so the
-		// create loses to a duplicate (see the probeKey comment). The
-		// keychain answered — it is responsive and usable. Fall through to
-		// cleanup, which removes whichever entry won.
-		if !strings.Contains(string(out), errSecDuplicateItem) {
-			return err
-		}
+		return securityError(out, err)
 	}
 
 	afterProbeAdd()
@@ -75,6 +61,18 @@ func probeBounded(ctx context.Context, serviceName, key string) error {
 // production; tests use it to expire the probe context in that window and pin
 // cleanup's independence from it.
 var afterProbeAdd = func() {}
+
+// securityError folds the security tool's diagnostic into its exit error.
+// A bare "exit status 36" tells nobody why the keychain was unavailable;
+// the tool's own line ("User interaction is not allowed.") does, and that
+// reason reaches users through Store.FallbackWarning and Load errors.
+func securityError(out []byte, err error) error {
+	diagnostic := strings.Join(strings.Fields(string(out)), " ")
+	if diagnostic == "" {
+		return err
+	}
+	return fmt.Errorf("%s (%w)", diagnostic, err)
+}
 
 var securityArgUnsafe = regexp.MustCompile(`[^\w@%+=:,./-]`)
 
