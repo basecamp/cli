@@ -1,0 +1,31 @@
+credstore/probe_test.go
+  s_cb8638fd4deb07::t_82f8a41264b868 5-6,12-23,25,28-30,32-37,39,42-43,46-50,52-54,57-59,61-62
+credstore/probe.go
+  s_cb8638fd4deb07::t_fe7688ad411fb4 5-9,22,24-39,42,45-51,62-66,70-72,74,76,81-85,90-91
+credstore/probe_darwin.go
+  s_cb8638fd4deb07::t_2a4e57a742580c 47,65-76
+credstore/probe_darwin_test.go
+  s_cb8638fd4deb07::t_2bb00ee8dbf931 111-114,118-129,149-152,160-163
+credstore/probe_other.go
+  s_cb8638fd4deb07::t_43422c38575046 11-13
+credstore/store.go
+  s_cb8638fd4deb07::t_f4518a9678cadb 31-35,60-68,78-80,83-86,90-96,98-102,104-107,115-119,128-133
+credstore/store_test.go
+  s_cb8638fd4deb07::t_11f85c3513cead 5,8-9,121-205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.0",
+  "base_commit_sha": "969ac6243abd9e82687c78eeb366f705a1bfbbcb",
+  "prompts": {},
+  "sessions": {
+    "s_cb8638fd4deb07": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7799bc4b-8db5-43d6-af8e-1895e0ebc853",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Jeremy Daer <jeremy@37signals.com>"
+    }
+  }
+}
