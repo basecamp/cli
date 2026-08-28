@@ -2,6 +2,7 @@ package credstore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,6 +101,27 @@ func TestForceFileSkipsProbe(t *testing.T) {
 	assert.JSONEq(t, `{"token":"abc123"}`, string(data))
 }
 
+// A healthy probe keeps the keyring: the store uses it, reports no probe
+// error, and has nothing to warn about. Zero-value options probe unbounded
+// — the timeout reaches the probe as zero — which is the documented contract
+// for tests that mock the keyring (see StoreOptions.ProbeTimeout).
+func TestHealthyProbeUsesKeyring(t *testing.T) {
+	probed := false
+	stubProbe(t, func(serviceName string, timeout time.Duration) error {
+		probed = true
+		assert.Equal(t, "test", serviceName)
+		assert.Zero(t, timeout)
+		return nil
+	})
+
+	store := NewStore(StoreOptions{ServiceName: "test", FallbackDir: t.TempDir()})
+
+	assert.True(t, probed)
+	assert.True(t, store.UsingKeyring())
+	assert.NoError(t, store.ProbeError())
+	assert.Empty(t, store.FallbackWarning())
+}
+
 func TestProbeTimeoutFallsBackToFile(t *testing.T) {
 	dir := t.TempDir()
 	stubProbe(t, func(serviceName string, timeout time.Duration) error {
@@ -115,38 +137,62 @@ func TestProbeTimeoutFallsBackToFile(t *testing.T) {
 	})
 
 	assert.False(t, store.UsingKeyring())
-	assert.Contains(t, store.FallbackWarning(), "system keyring unavailable")
+	assert.ErrorIs(t, store.ProbeError(), context.DeadlineExceeded)
+	assert.Contains(t, store.FallbackWarning(), "system keyring unavailable (context deadline exceeded)")
 }
 
-func TestZeroValueOptionsProbeUnbounded(t *testing.T) {
+// Regression: a probe failure silently demoted reads to the plaintext file,
+// and a miss there reported "credentials not found" — indistinguishable from
+// never having logged in, when the credentials sat safely in the keyring
+// this process merely failed to reach. The store must keep the probe error
+// and name it wherever the fallback shows: the warning and Load's error.
+func TestProbeFailureIsReportedOnLoad(t *testing.T) {
 	dir := t.TempDir()
-	probed := false
-	stubProbe(t, func(serviceName string, timeout time.Duration) error {
-		probed = true
-		assert.Zero(t, timeout)
+	probeErr := errors.New("User interaction is not allowed. (exit status 36)")
+	stubProbe(t, func(string, time.Duration) error { return probeErr })
+
+	store := NewStore(StoreOptions{ServiceName: "test", FallbackDir: dir})
+	credentialsPath := filepath.Join(dir, "credentials.json")
+
+	assert.Same(t, probeErr, store.ProbeError())
+	assert.Equal(t, "system keyring unavailable ("+probeErr.Error()+"), credentials stored in plaintext at "+credentialsPath,
+		store.FallbackWarning())
+
+	_, err := store.Load("profile:work")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, probeErr)
+	assert.ErrorContains(t, err, "credentials not found for profile:work")
+	assert.ErrorContains(t, err, "system keyring unavailable ("+probeErr.Error()+")")
+	assert.ErrorContains(t, err, "fell back to "+credentialsPath)
+}
+
+// The file fallback keeps working after a failed probe — it is the only
+// storage on hosts with no keyring at all — and a hit there is not an error.
+func TestProbeFailureStillReadsFallbackFile(t *testing.T) {
+	dir := t.TempDir()
+	stubProbe(t, func(string, time.Duration) error { return errors.New("no keyring") })
+
+	store := NewStore(StoreOptions{ServiceName: "test", FallbackDir: dir})
+
+	require.NoError(t, store.Save("mykey", []byte(`{"token":"abc123"}`)))
+	data, err := store.Load("mykey")
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"token":"abc123"}`, string(data))
+}
+
+// File storage the caller asked for is not a fallback: no probe ran, so
+// there is no probe error to report and nothing to warn about.
+func TestRequestedFileStorageReportsNoProbeFailure(t *testing.T) {
+	dir := t.TempDir()
+	stubProbe(t, func(string, time.Duration) error {
+		t.Error("probe should not run when file storage is requested")
 		return nil
 	})
 
-	store := NewStore(StoreOptions{
-		ServiceName: "test",
-		FallbackDir: dir,
-	})
+	store := NewStore(StoreOptions{ServiceName: "test", ForceFile: true, FallbackDir: dir})
 
-	assert.True(t, probed)
-	assert.True(t, store.UsingKeyring())
+	assert.NoError(t, store.ProbeError())
 	assert.Empty(t, store.FallbackWarning())
-}
-
-func TestLoadNonexistent(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("TEST_NO_KEYRING", "1")
-
-	store := NewStore(StoreOptions{
-		ServiceName:   "test",
-		DisableEnvVar: "TEST_NO_KEYRING",
-		FallbackDir:   dir,
-	})
-
-	_, err := store.Load("nonexistent")
-	assert.Error(t, err)
+	_, err := store.Load("mykey")
+	assert.EqualError(t, err, "credentials not found for mykey")
 }

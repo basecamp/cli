@@ -2,6 +2,10 @@ package credstore
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -14,34 +18,39 @@ var probeKeyring = probe
 // probeServicePrefix plus the caller's service — publicly documented on
 // StoreOptions.ProbeTimeout as reserved by credstore, so probing never
 // touches the caller's real service and a colliding consumer would have to
-// deliberately adopt this package's declared namespace. Within it, the key
-// is deliberately deterministic, not random: go-keyring has no list API, so
-// an entry leaked by an abandoned probe (a timed-out probe whose blocked Set
-// completes after the process exits, or a darwin cleanup cut short) would be
-// permanently unfindable under a random name. Under a fixed name, the next
-// probe's Set overwrites the leftover and its Delete removes it — leaks
-// self-heal on the following run.
+// deliberately adopt this package's declared namespace.
 //
-// The fixed name makes concurrent probes race on one shared item. The
-// losing Delete just fails, which is ignored — but on darwin the losing Set
-// can fail too: `security add-generic-password -U` is find-then-create
-// inside the security tool, so a peer's delete/add interleaving surfaces
-// errSecDuplicateItem even though the keychain is healthy. Every probe
-// therefore treats a lost write race backed by write evidence — a
-// duplicate-item error, a successful retry, or the peer's completed write —
-// as availability, not as grounds for the file fallback; see probeDirect
-// and the darwin probeBounded.
+// Within that namespace the account is per probe: probeKeyPrefix, the pid,
+// and an in-process sequence number. Concurrent probes must never share a
+// keychain item, because on darwin `security add-generic-password -U` is
+// find-then-create inside the security tool, and a peer's delete/add
+// landing in that window fails the add with errSecDuplicateItem on a
+// perfectly healthy keychain — twenty concurrent probes of one shared item
+// lost 190 of 200. Distinct pids separate processes; the sequence number
+// separates probes within a process, including one still running after its
+// bounded wait gave up (non-darwin abandons the worker goroutine) from any
+// probe started later. No two probes ever touch the same entry.
+//
+// The account is still deterministic rather than random: go-keyring has no
+// list API, so an entry leaked by an abandoned probe (a timed-out probe
+// whose blocked Set completes after the process exits, or a darwin cleanup
+// cut short) would be permanently unfindable under a random name. Under
+// the pid-and-sequence name, the next process to reuse that pid overwrites
+// the leftover with its own same-numbered probe — the first, in practice,
+// since a process probes once — and removes it. Leaks still self-heal, on
+// pid reuse instead of on the very next run.
 const (
 	probeServicePrefix = "credstore.probe."
-	probeKey           = "__probe__"
+	probeKeyPrefix     = "__probe__."
 )
 
-// keyring operations, extracted as vars so tests can exercise probeDirect's
-// write-race disambiguation (go-keyring's mock cannot fail Set while
-// answering Get).
+// probeSeq numbers this process's probes so no two share an account.
+var probeSeq atomic.Uint64
+
+// keyring operations, extracted as vars so tests can observe the entry
+// probeDirect writes and removes without a live keyring.
 var (
 	keyringSet    = keyring.Set
-	keyringGet    = keyring.Get
 	keyringDelete = keyring.Delete
 )
 
@@ -50,49 +59,39 @@ func probeService(serviceName string) string {
 	return probeServicePrefix + serviceName
 }
 
+// probeKey derives a fresh probe account for this process.
+func probeKey() string {
+	return fmt.Sprintf("%s%d.%d", probeKeyPrefix, os.Getpid(), probeSeq.Add(1))
+}
+
 // probe writes and removes a throwaway keyring entry to check availability.
 // A zero or negative timeout probes unbounded, matching historical behavior.
 // A positive timeout bounds the probe; on platforms where the probe runs a
-// child process (darwin), the child is killed when the timeout expires.
+// child process (darwin), the child is killed when the timeout expires. A
+// probe that hits the bound reports the timeout by name, since that reason
+// reaches users through Store.FallbackWarning and Load errors.
 func probe(serviceName string, timeout time.Duration) error {
-	service := probeService(serviceName)
+	service, key := probeService(serviceName), probeKey()
 	if timeout <= 0 {
-		return probeDirect(service, probeKey)
+		return probeDirect(service, key)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return probeBounded(ctx, service, probeKey)
+	err := probeBounded(ctx, service, key)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("keyring probe timed out after %s: %w", timeout, err)
+	}
+	return err
 }
 
-// probeDirect probes via go-keyring, which has no cancellation path.
-//
-// A failed Set is not yet an unavailable keyring: concurrent probes share
-// one fixed-name entry, and on darwin a peer's delete/add interleaving makes
-// the write lose with errSecDuplicateItem (see the probeKey comment). The
-// write error alone cannot be classified — go-keyring returns a bare exit
-// error with no output — so recovery demands fresh evidence the keyring
-// accepts writes, never a mere read answer (a read-only keyring cleanly
-// misses a Get of the absent probe entry, and reporting it available would
-// break every later Save). Two forms of write evidence qualify:
-//
-//   - An immediate retry of the Set succeeds — the contended entry has
-//     settled (present, so darwin's -U updates in place; absent, so a plain
-//     create lands) and this process demonstrably wrote.
-//   - The retry also loses, but Get finds the entry — a peer process of the
-//     same uid completed exactly this write moments ago, which is what
-//     sustained churn from concurrent probes looks like.
-//
-// A keyring that fails both writes and cannot show a peer's is reported
-// unavailable with the original write error.
+// probeDirect probes via go-keyring, which has no cancellation path. Its
+// failure is named by the platform (keyringError) so the unbounded path's
+// reason reads as well as the bounded path's: on darwin go-keyring returns
+// a bare "exit status N" with the security tool's diagnostic discarded.
 func probeDirect(serviceName, key string) error {
-	err := keyringSet(serviceName, key, "probe")
-	if err != nil {
-		if retryErr := keyringSet(serviceName, key, "probe"); retryErr != nil {
-			if _, getErr := keyringGet(serviceName, key); getErr != nil {
-				return err
-			}
-		}
+	if err := keyringSet(serviceName, key, "probe"); err != nil {
+		return keyringError(err)
 	}
 	_ = keyringDelete(serviceName, key)
 	return nil

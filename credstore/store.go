@@ -3,7 +3,6 @@ package credstore
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/zalando/go-keyring"
@@ -29,9 +28,11 @@ type StoreOptions struct {
 	// means no bound, matching historical behavior. When the probe times
 	// out, the store falls back to file storage as if the probe had failed.
 	// Probing writes and removes a throwaway entry under the dedicated
-	// keyring service "credstore.probe.<ServiceName>" (account "__probe__")
-	// — a namespace reserved by this package — never under ServiceName
-	// itself, so a probe cannot touch real credentials.
+	// keyring service "credstore.probe.<ServiceName>" (account
+	// "__probe__.<pid>.<n>") — a namespace reserved by this package — never
+	// under ServiceName itself, so a probe cannot touch real credentials.
+	// The account is unique per probe, so concurrent invocations never
+	// contend for one keychain item.
 	//
 	// On darwin, removal of the throwaway probe entry runs synchronously
 	// after a successful probe with a short budget of its own, so worst-case
@@ -56,10 +57,15 @@ type StoreOptions struct {
 
 // Store handles credential storage with keyring preference and file fallback.
 type Store struct {
-	serviceName     string
-	useKeyring      bool
-	fallbackDir     string
-	fallbackWarning string
+	serviceName string
+	useKeyring  bool
+	fallbackDir string
+
+	// probeErr is why the keyring probe failed when the store fell back to
+	// file storage against the caller's wishes. Nil when the keyring is in
+	// use and when file storage was requested (ForceFile, DisableEnvVar):
+	// a requested fallback is not a degradation and warrants no warning.
+	probeErr error
 }
 
 // NewStore creates a credential store. It probes the system keyring
@@ -69,22 +75,33 @@ func NewStore(opts StoreOptions) *Store {
 		return &Store{serviceName: opts.ServiceName, useKeyring: false, fallbackDir: opts.FallbackDir}
 	}
 
-	if probeKeyring(opts.ServiceName, opts.ProbeTimeout) == nil {
-		return &Store{serviceName: opts.ServiceName, useKeyring: true, fallbackDir: opts.FallbackDir}
-	}
-
+	err := probeKeyring(opts.ServiceName, opts.ProbeTimeout)
 	return &Store{
-		serviceName:     opts.ServiceName,
-		useKeyring:      false,
-		fallbackDir:     opts.FallbackDir,
-		fallbackWarning: fmt.Sprintf("system keyring unavailable, credentials stored in plaintext at %s", filepath.Join(opts.FallbackDir, "credentials.json")),
+		serviceName: opts.ServiceName,
+		useKeyring:  err == nil,
+		fallbackDir: opts.FallbackDir,
+		probeErr:    err,
 	}
 }
 
+// ProbeError returns why the keyring probe failed and the store fell back
+// to file storage, or nil when the keyring is in use or file storage was
+// requested outright.
+func (s *Store) ProbeError() error {
+	return s.probeErr
+}
+
 // FallbackWarning returns a warning message if the store fell back to file
-// storage, or empty string if using keyring.
+// storage because the keyring probe failed, or empty string otherwise. The
+// message names the probe failure so a fallback is never silent about its
+// cause. Callers decide where to surface it; surface it on reads as well as
+// writes, since a fallback read may return a stale file left over from an
+// earlier fallback rather than the credentials the keyring holds.
 func (s *Store) FallbackWarning() string {
-	return s.fallbackWarning
+	if s.probeErr == nil {
+		return ""
+	}
+	return fmt.Sprintf("system keyring unavailable (%v), credentials stored in plaintext at %s", s.probeErr, s.credentialsPath())
 }
 
 func (s *Store) key(name string) string {
@@ -92,6 +109,11 @@ func (s *Store) key(name string) string {
 }
 
 // Load retrieves credentials for the given key.
+//
+// On the file fallback, a miss is reported together with the keyring probe
+// failure that caused the fallback: "credentials not found" alone reads as
+// "log in again" when the truth may be that the credentials sit safely in
+// the keyring and only this process could not reach it.
 func (s *Store) Load(key string) ([]byte, error) {
 	if s.useKeyring {
 		data, err := keyring.Get(s.serviceName, s.key(key))
@@ -100,7 +122,12 @@ func (s *Store) Load(key string) ([]byte, error) {
 		}
 		return []byte(data), nil
 	}
-	return s.loadFromFile(key)
+
+	data, err := s.loadFromFile(key)
+	if err != nil && s.probeErr != nil {
+		return nil, fmt.Errorf("%w: system keyring unavailable (%w), fell back to %s", err, s.probeErr, s.credentialsPath())
+	}
+	return data, err
 }
 
 // Save stores credentials for the given key.
