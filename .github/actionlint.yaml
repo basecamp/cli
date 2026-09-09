@@ -1,4 +1,4 @@
 paths:
   ".github/workflows/**/*.{yaml,yml}":
     ignore:
-      - 'reusable workflow call "\$/.+" at "uses" is not following the format'
+      - 'reusable workflow call "\$/\.github/workflows/security\.yml" at "uses" is not following the format'
