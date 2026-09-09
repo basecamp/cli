@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   security:
     name: Security
-    uses: ./.github/workflows/security.yml
+    uses: $/.github/workflows/security.yml
     permissions:
       contents: read
       security-events: write
@@ -64,7 +64,7 @@ jobs:
 
       - name: Govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           govulncheck ./...
 
       - name: Verify tag is on main
