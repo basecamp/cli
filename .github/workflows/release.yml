@@ -64,7 +64,7 @@ jobs:
 
       - name: Govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
       - name: Verify tag is on main
