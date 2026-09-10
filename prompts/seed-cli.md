@@ -100,6 +100,7 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
 
    **GitHub infra (copy as-is unless .tmpl):**
    - `seed/.github/workflows/test.yml` → `.github/workflows/test.yml` (update env vars, GOPRIVATE)
+   - `seed/.github/actionlint.yaml` → `.github/actionlint.yaml` (the test workflow's lint-actions job reads it)
    - `seed/.github/workflows/security.yml` → `.github/workflows/security.yml`
    - `seed/.github/workflows/release.yml` → `.github/workflows/release.yml` (update env vars)
    - `seed/.github/workflows/dependabot-auto-merge.yml` → `.github/workflows/dependabot-auto-merge.yml`
