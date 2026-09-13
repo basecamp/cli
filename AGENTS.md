@@ -66,8 +66,11 @@ Several CLIs share that target, so each one owns `.managed-skills.<source>` ther
 skill directories its own manifest lists, that its skill set no longer has, and that no
 other manifest claims. The legacy shared `.managed-skills` is rewritten as a comment-only
 tombstone so a sibling still on the pre-fix script deletes nothing (basecamp/skills#5).
-`seed/scripts/test-sync-skills.sh` runs the script as two CLIs against a throwaway
-target and is part of `make check`.
+The script always clones the target fresh (from `SKILLS_REPO_URL`, default
+`https://github.com/basecamp/skills.git`) and pushes only the commit it made, so there is
+no checkout to hand it. `seed/scripts/test-sync-skills.sh` runs the script as two CLIs
+against a local bare repository — real clones, commits and pushes, no network — and is
+part of `make check`.
 
 ## Rubric
 
