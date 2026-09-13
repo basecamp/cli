@@ -266,7 +266,28 @@ assert_output "Skills synced to basecamp/skills"
 assert "origin main holds the sibling's commit then the sync" \
   test "$(git -C "$origin" log --format=%s -2 main | tr '\n' '|')" = "Sync skills from hey-cli v9.9.9|Sync skills from basecamp-cli v0.0.1 (concurrent)|"
 assert_content skills/hey/SKILL.md "hey v4"
+assert_content README.md "# skills (sibling)"
 assert_clean
+
+echo "# a concurrent publisher claims a name this source ships: the retry refuses"
+git -C "$sibling" pull -q origin main
+printf 'basecamp\nbasecamp-doctor\nhey\n' > "${sibling}/.managed-skills.basecamp-cli"
+git -C "$sibling" commit -q -am "Collision: basecamp-cli claims hey (concurrent)"
+git -C "$sibling" push -q origin main
+echo "hey v5" > "${a}/skills/hey/SKILL.md"
+sync_expecting_failure hey-cli "$a" SKILLS_TARGET="$target" \
+  GIT_CONFIG_COUNT=1 "GIT_CONFIG_KEY_0=url.${origin}.insteadOf" GIT_CONFIG_VALUE_0=https://github.com/basecamp/skills.git
+assert_output "Push rejected"
+assert_output "ERROR: skills/hey is published by basecamp-cli"
+assert "origin main tip is the sibling's commit" \
+  test "$(git -C "$origin" log -1 --format=%s main)" = "Collision: basecamp-cli claims hey (concurrent)"
+assert_content skills/hey/SKILL.md "hey v4"
+assert_clean
+git -C "$sibling" checkout -q HEAD~1 -- .managed-skills.basecamp-cli
+git -C "$sibling" commit -q -am "basecamp-cli drops its claim on hey"
+git -C "$sibling" push -q origin main
+git -C "$target" fetch -q "$origin" main
+git -C "$target" reset -q --hard FETCH_HEAD
 
 # --- Safety asserts on the checkout ---
 
@@ -283,6 +304,11 @@ git -C "$wrong" remote add origin https://github.com/basecamp/other.git
 git -C "$wrong" commit -q --allow-empty -m "init"
 sync_expecting_failure hey-cli "$a" DRY_RUN=local SKILLS_TARGET="$wrong"
 assert_output "does not point to github.com/basecamp/skills"
+
+git -C "$target" remote set-url --push origin https://github.com/someone/skills.git
+sync_expecting_failure hey-cli "$a" DRY_RUN=local SKILLS_TARGET="$target"
+assert_output "origin pushurl 'https://github.com/someone/skills.git' does not point to github.com/basecamp/skills"
+git -C "$target" config --unset remote.origin.pushurl
 
 git -C "$target" checkout -q -b not-main
 sync_expecting_failure hey-cli "$a" DRY_RUN=local SKILLS_TARGET="$target"

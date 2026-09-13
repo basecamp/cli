@@ -45,4 +45,11 @@ runs:
         SKILLS_SOURCE: ${{ inputs.skills-source }}
         DRY_RUN: ${{ inputs.dry-run }}
         ACTION_PATH: ${{ github.action_path }}
-      run: bash "${ACTION_PATH}/../../seed/scripts/sync-skills.sh"
+      run: |
+        # The release workflows check this before generating a token; the action
+        # has no step in front of it, so a CLI with no skills yet is a no-op here.
+        if ! compgen -G "${SKILLS_SOURCE}/*/SKILL.md" > /dev/null; then
+          echo "No skill files found under ${SKILLS_SOURCE}/ — skipping sync"
+          exit 0
+        fi
+        bash "${ACTION_PATH}/../../seed/scripts/sync-skills.sh"

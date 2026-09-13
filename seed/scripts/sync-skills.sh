@@ -106,12 +106,13 @@ read_manifest() {
 
 # Print the other source whose manifest claims a name, if any.
 claimed_by_other() {
-  local name="$1" file other
+  local name="$1" file other listed
   for file in "${target}/${LEGACY_MANIFEST}".*; do
     [[ -f "$file" ]] || continue
     other="${file##*/"${LEGACY_MANIFEST}".}"
     [[ "$other" == "$SYNC_SOURCE" ]] && continue
-    if read_manifest "$file" | grep -qxF -- "$name"; then
+    listed=$(read_manifest "$file")
+    if grep -qxF -- "$name" <<< "$listed"; then
       echo "$other"
       return 0
     fi
@@ -119,18 +120,21 @@ claimed_by_other() {
   return 1
 }
 
-# The URL as configured: `remote get-url` would show it after any insteadOf rewrite,
-# so an operator's rewrite could satisfy this check with a repo that is not the target.
+# The URLs as configured: `remote get-url` would show them after any insteadOf
+# rewrite, so an operator's rewrite could pass this check with a repo that is not
+# the target. A push URL of its own is where `git push origin` would actually go.
 assert_remote_url() {
-  local url stripped
-  url=$(git -C "$1" config --get remote.origin.url)
-  stripped="${url%.git}"
-  case "$stripped" in
-    "https://github.com/${TARGET_REPO}") ;;
-    https://x-access-token:*@github.com/"${TARGET_REPO}") ;;
-    "git@github.com:${TARGET_REPO}") ;;
-    *) die "origin remote '$(echo "$url" | sed -E 's#(https://[^:@]+:)[^@]*@#\1***@#')' does not point to github.com/${TARGET_REPO}" ;;
-  esac
+  local kind url
+  for kind in url pushurl; do
+    url=$(git -C "$1" config --get "remote.origin.${kind}" || true)
+    [[ -z "$url" && "$kind" == pushurl ]] && continue
+    case "${url%.git}" in
+      "https://github.com/${TARGET_REPO}") ;;
+      https://x-access-token:*@github.com/"${TARGET_REPO}") ;;
+      "git@github.com:${TARGET_REPO}") ;;
+      *) die "origin ${kind} '$(echo "$url" | sed -E 's#(https://[^:@]+:)[^@]*@#\1***@#')' does not point to github.com/${TARGET_REPO}" ;;
+    esac
+  done
 }
 
 assert_branch() {
@@ -238,56 +242,69 @@ assert_branch "$target"
 # `git add -A` below would sweep anything else in the checkout into the sync commit.
 [[ -z "$(git -C "$target" status --porcelain)" ]] || die "${target} has uncommitted changes; commit or stash them before syncing into it"
 
-# --- Refuse a name another source has published ---
+# --- Apply the sync to the target's working tree ---
+#
+# Every decision here is made against the tree as it stands, so a retry after a
+# rejected push runs this again from the remote's new tip instead of replaying
+# decisions made against a stale one.
 
-for name in "${skill_names[@]}"; do
-  if other=$(claimed_by_other "$name"); then
-    die "skills/${name} is published by ${other} (listed in ${LEGACY_MANIFEST}.${other}); rename the skill or settle ownership upstream"
+apply_sync() {
+  local name other
+  local previously_published=()
+
+  # Refuse a name another source has published
+  for name in "${skill_names[@]}"; do
+    if other=$(claimed_by_other "$name"); then
+      die "skills/${name} is published by ${other} (listed in ${LEGACY_MANIFEST}.${other}); rename the skill or settle ownership upstream"
+    fi
+  done
+
+  echo "Copying skills into ${target}/${SKILLS_SUBDIR}/..."
+  copy_skills "${target}/${SKILLS_SUBDIR}"
+
+  # Remove what this source published before and no longer has
+  while IFS= read -r name; do
+    previously_published+=("$name")
+  done < <(read_manifest "${target}/${MANIFEST}")
+
+  if [[ ! -f "${target}/${MANIFEST}" ]]; then
+    echo "No ${MANIFEST} yet: first run for ${SYNC_SOURCE}, removing nothing"
   fi
-done
 
-# --- Publish this source's skills ---
+  for name in ${previously_published[@]+"${previously_published[@]}"}; do
+    in_list "$name" "${skill_names[@]}" && continue
+    if other=$(claimed_by_other "$name"); then
+      warn "skills/${name} is no longer in ${SYNC_SOURCE}'s skills but ${other} lists it in ${LEGACY_MANIFEST}.${other}; leaving it in place"
+      continue
+    fi
+    if [[ -d "${target}/${SKILLS_SUBDIR}/${name}" ]]; then
+      echo "Removing stale skill: ${name}"
+      rm -rf "${target:?}/${SKILLS_SUBDIR}/${name}"
+    fi
+  done
 
-echo "Copying skills into ${target}/${SKILLS_SUBDIR}/..."
-copy_skills "${target}/${SKILLS_SUBDIR}"
-
-# --- Remove what this source published before and no longer has ---
-
-previously_published=()
-while IFS= read -r name; do
-  previously_published+=("$name")
-done < <(read_manifest "${target}/${MANIFEST}")
-
-if [[ ! -f "${target}/${MANIFEST}" ]]; then
-  echo "No ${MANIFEST} yet: first run for ${SYNC_SOURCE}, removing nothing"
-fi
-
-for name in ${previously_published[@]+"${previously_published[@]}"}; do
-  in_list "$name" "${skill_names[@]}" && continue
-  if other=$(claimed_by_other "$name"); then
-    warn "skills/${name} is no longer in ${SYNC_SOURCE}'s skills but ${other} lists it in ${LEGACY_MANIFEST}.${other}; leaving it in place"
-    continue
-  fi
-  if [[ -d "${target}/${SKILLS_SUBDIR}/${name}" ]]; then
-    echo "Removing stale skill: ${name}"
-    rm -rf "${target:?}/${SKILLS_SUBDIR}/${name}"
-  fi
-done
-
-# --- Write this source's manifest and the legacy tombstone ---
-
-printf '%s\n' "${skill_names[@]}" | LC_ALL=C sort > "${target}/${MANIFEST}"
-
-cat > "${target}/${LEGACY_MANIFEST}" <<'TOMBSTONE'
+  # This source's manifest, and the legacy tombstone
+  printf '%s\n' "${skill_names[@]}" | LC_ALL=C sort > "${target}/${MANIFEST}"
+  cat > "${target}/${LEGACY_MANIFEST}" <<'TOMBSTONE'
 # Superseded by the per-source manifests (.managed-skills.<cli>), one per publishing CLI.
 # Each CLI deletes only the skill directories listed in its own manifest.
 # Kept so a CLI still running the pre-fix sync script deletes nothing: that script skips
 # every line it cannot parse as a skill name and only deletes names it can.
 TOMBSTONE
 
-# --- Commit ---
+  git -C "$target" add -A
+}
 
-git -C "$target" add -A
+commit_sync() {
+  git -C "$target" commit -q -m "$(cat <<EOF
+Sync skills from ${SYNC_SOURCE} ${RELEASE_TAG}
+
+Source: ${SOURCE_REPO}@${SOURCE_SHA}
+EOF
+)"
+}
+
+apply_sync
 
 if git -C "$target" diff --cached --quiet; then
   echo "No changes to commit. Skills are already up to date."
@@ -307,38 +324,41 @@ if [[ "$DRY_RUN" == "remote" ]]; then
   exit 0
 fi
 
-git -C "$target" commit -q -m "$(cat <<EOF
-Sync skills from ${SYNC_SOURCE} ${RELEASE_TAG}
-
-Source: ${SOURCE_REPO}@${SOURCE_SHA}
-EOF
-)"
+commit_sync
 
 if [[ "$DRY_RUN" == "local" ]]; then
   echo "DRY_RUN=local: committed in ${target}, skipping push."
   exit 0
 fi
 
-# --- Push, with one retry when another publisher got there first ---
+# --- Push; when another publisher got there first, apply again from its tip ---
 #
 # A fresh clone racing a sibling's push is rejected as "fetch first"; a clone whose
-# tracking ref already knows the remote moved, as "non-fast-forward".
+# tracking ref already knows the remote moved, as "non-fast-forward". Either way the
+# commit just made was decided against a stale tree, so it is dropped and the sync
+# applied again to the remote's tip — collision guard included — then pushed once more.
 
 push_target() {
   git -C "$target" push origin "$TARGET_BRANCH" 2>&1
 }
 
 if ! output=$(push_target); then
-  if echo "$output" | grep -Eqi "fetch first|non-fast-forward"; then
-    echo "Push rejected (the remote has moved). Pulling with rebase and retrying..."
-    git -C "$target" pull --rebase origin "$TARGET_BRANCH"
-    if ! retry_output=$(push_target); then
-      echo "$retry_output" >&2
-      die "Push failed after retry"
-    fi
-  else
+  if ! echo "$output" | grep -Eqi "fetch first|non-fast-forward"; then
     echo "$output" >&2
     die "Push failed"
+  fi
+  echo "Push rejected (the remote has moved). Applying the sync again from its new tip..."
+  git -C "$target" fetch -q origin "$TARGET_BRANCH"
+  git -C "$target" reset -q --hard FETCH_HEAD
+  apply_sync
+  if git -C "$target" diff --cached --quiet; then
+    echo "Nothing left to publish: the remote already holds these skills."
+    exit 0
+  fi
+  commit_sync
+  if ! retry_output=$(push_target); then
+    echo "$retry_output" >&2
+    die "Push failed after retry"
   fi
 fi
 
