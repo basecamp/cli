@@ -18,10 +18,10 @@ LEGACY_PATTERN ?=
 .PHONY: check check-toolchain build test test-race test-e2e vet lint fmt fmt-check bench bench-cpu bench-mem \
 	check-all clean tidy tidy-check check-naming replace-check check-surface check-surface-diff \
 	check-surface-compat vuln secrets security provenance-check release-check release \
-	sync-skills sync-skills-remote collect-profile build-pgo test-coverage coverage
+	sync-skills sync-skills-remote test-sync-skills collect-profile build-pgo test-coverage coverage
 
 # Default target: fast checks suitable for pre-commit / inner-loop dev.
-check: fmt-check vet test test-e2e tidy-check
+check: fmt-check vet test test-e2e test-sync-skills tidy-check
 
 # Guard against Go toolchain mismatch (mise environment)
 check-toolchain:
@@ -209,6 +209,10 @@ sync-skills:
 	@test -n "$(TAG)" || (echo "Usage: make sync-skills TAG=v1.2.3" && exit 1)
 	RELEASE_TAG=$(TAG) SOURCE_SHA=$$(git rev-parse HEAD) DRY_RUN=local scripts/sync-skills.sh
 
+# Run the skills sync against a throwaway basecamp/skills, as two CLIs publishing in turn
+test-sync-skills:
+	scripts/test-sync-skills.sh
+
 # Sync skills (dry-run against real target repo)
 # Usage: make sync-skills-remote TAG=v1.2.3 SKILLS_TOKEN=ghp_...
 sync-skills-remote:
@@ -221,7 +225,7 @@ collect-profile:
 	./scripts/collect-profile.sh
 
 # Full suite: everything CI runs. Slower — includes lint, race detector, benchmarks, surface.
-check-all: fmt-check vet lint test-race test-e2e bench check-surface
+check-all: fmt-check vet lint test-race test-e2e test-sync-skills bench check-surface
 
 clean:
 	rm -rf $(BUILD_DIR)

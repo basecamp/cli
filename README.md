@@ -41,7 +41,7 @@ Reusable composite actions in `actions/`:
 |--------|-------------|
 | `rubric-check` | Score a built CLI binary against the 37signals CLI rubric |
 | `surface-compat` | Fail CI if CLI flags or subcommands were removed (breaking change) |
-| `sync-skills` | Sync embedded SKILL.md files to the `basecamp/skills` distribution repo on release |
+| `sync-skills` | Publish embedded skills to the `basecamp/skills` distribution repo on release (runs `seed/scripts/sync-skills.sh`) |
 
 Usage in a workflow:
 
@@ -86,12 +86,18 @@ The `skills/` directory contains agent skills distributed via `basecamp/skills`:
 
 - `rubric-audit` — Audit a Go CLI against the rubric
 
+On release, `scripts/sync-skills.sh` publishes each one to `skills/<name>/` in
+`basecamp/skills`, where every 37signals CLI publishes its own. Each publisher owns a
+manifest there, `.managed-skills.<source>`, and only ever removes skills it listed —
+the scheme, and the seed script every CLI runs, are described in
+`seed/scripts/sync-skills.sh`.
+
 ## Development
 
 Requires Go 1.24+.
 
 ```
-make check       # fmt-check + vet + test (inner-loop dev)
+make check       # fmt-check + vet + test + test-sync-skills (inner-loop dev)
 make test         # go test ./...
 make test-race    # go test -race ./...
 make lint         # golangci-lint run

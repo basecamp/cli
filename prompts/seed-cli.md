@@ -96,7 +96,8 @@ You are creating a new Go CLI for a 37signals product using the seed templates.
    - `seed/scripts/check-cli-surface-diff.sh` → `scripts/check-cli-surface-diff.sh` (copy; chmod +x)
    - `seed/scripts/collect-profile.sh` → `scripts/collect-profile.sh` (copy; chmod +x)
    - `seed/scripts/publish-aur.sh` → `scripts/publish-aur.sh` (copy; chmod +x)
-   - `seed/scripts/sync-skills.sh` → `scripts/sync-skills.sh` (copy; chmod +x)
+   - `seed/scripts/sync-skills.sh` → `scripts/sync-skills.sh` (copy; chmod +x; set `CLI_NAME`)
+   - `seed/scripts/test-sync-skills.sh` → `scripts/test-sync-skills.sh` (copy; chmod +x)
 
    **GitHub infra (copy as-is unless .tmpl):**
    - `seed/.github/workflows/test.yml` → `.github/workflows/test.yml` (update env vars, GOPRIVATE)

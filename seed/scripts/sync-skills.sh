@@ -1,159 +1,333 @@
 #!/usr/bin/env bash
-# sync-skills.sh — Sync embedded skills to basecamp/skills distribution repo.
+# sync-skills.sh — Publish this CLI's skills to the basecamp/skills distribution repo.
 #
-# Run from CI on release (tag push). Copies skills/*/SKILL.md to the
-# basecamp/skills repo, commits, and pushes.
+# Runs from CI on a release tag. Mirrors each skills/<name>/ tree (SKILL.md and its
+# supporting files; no *.go, no dotfiles) into skills/<name>/ at the root of
+# basecamp/skills — the layout `npx skills add basecamp/skills` reads — then commits
+# as <source>[bot] and pushes.
+#
+# Several CLIs publish into that one repo, so each owns a manifest of its own at the
+# target root, .managed-skills.<source>, listing the skill names it has published,
+# one per line. A skills/<name> directory is removed only when all of these hold:
+# this source's manifest lists it, this source's current skill set no longer has
+# it, and no other source's manifest claims it. A name two sources claim is a
+# collision to settle upstream, never one a release resolves by deletion — the
+# script warns and leaves the directory, and refuses outright to publish a name
+# another source's manifest holds. Nothing else in the target is ever deleted: with
+# no manifest yet, the first run publishes and removes nothing.
+#
+# The shared manifest the pre-fix scripts kept, .managed-skills, is rewritten on
+# every run as a comment-only tombstone. The pre-fix script skips any line it cannot
+# parse as a skill name, but treats a missing file as licence to own every skills/*
+# directory — so the tombstone is what stops an un-upgraded sibling from deleting
+# anyone's skills, whichever CLI upgrades first (basecamp/skills#5).
 #
 # Required env vars:
-#   SKILLS_TOKEN   — GitHub token with push access to basecamp/skills
-#   RELEASE_TAG    — The release tag (e.g., v1.2.3)
-#   SOURCE_SHA     — The source commit SHA
+#   RELEASE_TAG    — the release tag (e.g. v1.2.3)
+#   SOURCE_SHA     — the source commit SHA
+#   SKILLS_TOKEN   — GitHub token with push access to basecamp/skills; not needed
+#                    for DRY_RUN=local, nor when SKILLS_TARGET is set
 #
 # Optional env vars:
-#   DRY_RUN        — "local" to skip push, "remote" to skip commit+push
+#   CLI_NAME       — this CLI's name; the publishing source is <CLI_NAME>-cli
+#   SYNC_SOURCE    — the publishing repo's name (default: <CLI_NAME>-cli). Names the
+#                    manifest, the bot and the commit; the test sets it to play
+#                    another CLI
+#   SKILLS_SOURCE  — directory holding the skills tree (default: skills). A manual
+#                    recovery workflow can point it at a checkout of the release tag
+#                    so the sync logic comes from a newer ref than the content
+#   SKILLS_TARGET  — an existing checkout of basecamp/skills to sync into instead of
+#                    cloning; the remote-URL and branch asserts still run against it
+#   DRY_RUN        — "local": no network. Without SKILLS_TARGET, copy into an empty
+#                    tmpdir and print what would be published; with it, apply and
+#                    commit there but do not push.
+#                    "remote": clone (or use SKILLS_TARGET), apply, print the diff,
+#                    and stop before committing
 #
 # TODO: Replace CLI_NAME with your CLI name.
 
 set -euo pipefail
 
 CLI_NAME="${CLI_NAME:-mycli}"
-SKILLS_REPO="basecamp/skills"
-SKILLS_DIR="skills"
-MANAGED_MANIFEST=".managed-skills"
-
-: "${RELEASE_TAG:?RELEASE_TAG is required}"
-: "${SOURCE_SHA:?SOURCE_SHA is required}"
-
-DRY_RUN="${DRY_RUN:-}"
+SYNC_SOURCE="${SYNC_SOURCE:-${CLI_NAME}-cli}"
+RELEASE_TAG="${RELEASE_TAG:?RELEASE_TAG is required}"
+SOURCE_SHA="${SOURCE_SHA:?SOURCE_SHA is required}"
+SKILLS_SOURCE="${SKILLS_SOURCE:-skills}"
+SKILLS_TARGET="${SKILLS_TARGET:-}"
 SKILLS_TOKEN="${SKILLS_TOKEN:-}"
+DRY_RUN="${DRY_RUN:-}"
 
-# SKILLS_TOKEN is required unless running a local dry-run
-if [ -z "$SKILLS_TOKEN" ] && [ "$DRY_RUN" != "local" ]; then
-  echo "Error: SKILLS_TOKEN is required (set DRY_RUN=local to skip clone)" >&2
-  exit 1
+TARGET_REPO="basecamp/skills"
+TARGET_BRANCH="main"
+SKILLS_SUBDIR="skills"
+LEGACY_MANIFEST=".managed-skills"
+MANIFEST="${LEGACY_MANIFEST}.${SYNC_SOURCE}"
+# The commit's provenance line; GITHUB_REPOSITORY is exact in CI, the default holds
+# for the basecamp org's <source> naming.
+SOURCE_REPO="${GITHUB_REPOSITORY:-basecamp/${SYNC_SOURCE}}"
+
+# --- Helpers ---
+
+die() { echo "ERROR: $*" >&2; exit 1; }
+warn() { echo "WARNING: $*" >&2; }
+
+# A skill directory name or a source name: nothing a path could smuggle in.
+plain_name() {
+  [[ "$1" != "." && "$1" != ".." && "$1" =~ ^[a-zA-Z0-9._-]+$ ]]
+}
+
+in_list() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+# Print the skill names a manifest lists, one per line. Blank and comment lines
+# are skipped silently; anything else that is not a plain name, with a warning.
+read_manifest() {
+  local file="$1" line
+  [[ -f "$file" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    if plain_name "$line"; then
+      echo "$line"
+    else
+      warn "skipping invalid entry in ${file##*/}: $line"
+    fi
+  done < "$file"
+}
+
+# Print the other source whose manifest claims a name, if any.
+claimed_by_other() {
+  local name="$1" file other
+  for file in "${target}/${LEGACY_MANIFEST}".*; do
+    [[ -f "$file" ]] || continue
+    other="${file##*/"${LEGACY_MANIFEST}".}"
+    [[ "$other" == "$SYNC_SOURCE" ]] && continue
+    if read_manifest "$file" | grep -qxF -- "$name"; then
+      echo "$other"
+      return 0
+    fi
+  done
+  return 1
+}
+
+assert_remote_url() {
+  local url stripped
+  url=$(git -C "$1" remote get-url origin)
+  stripped="${url%.git}"
+  case "$stripped" in
+    "https://github.com/${TARGET_REPO}") ;;
+    https://x-access-token:*@github.com/"${TARGET_REPO}") ;;
+    "git@github.com:${TARGET_REPO}") ;;
+    *) die "origin remote '$(echo "$url" | sed -E 's#(https://[^:@]+:)[^@]*@#\1***@#')' does not point to github.com/${TARGET_REPO}" ;;
+  esac
+}
+
+assert_branch() {
+  local branch
+  branch=$(git -C "$1" rev-parse --abbrev-ref HEAD)
+  [[ "$branch" == "$TARGET_BRANCH" ]] || die "checked-out branch is '$branch', expected '$TARGET_BRANCH'"
+}
+
+# --- Validate the knobs ---
+
+plain_name "$SYNC_SOURCE" || die "SYNC_SOURCE '$SYNC_SOURCE' is not a plain name"
+case "$DRY_RUN" in
+  ""|local|remote) ;;
+  *) die "DRY_RUN must be unset, 'local' or 'remote', not '$DRY_RUN'" ;;
+esac
+
+# --- Discover skills ---
+
+skill_names=()
+for skill_md in "$SKILLS_SOURCE"/*/SKILL.md; do
+  [[ -f "$skill_md" ]] || continue
+  name=$(basename "$(dirname "$skill_md")")
+  plain_name "$name" || die "skill directory '$name' is not a plain name"
+  skill_names+=("$name")
+done
+
+[[ ${#skill_names[@]} -gt 0 ]] || die "no skills found under ${SKILLS_SOURCE}/*/SKILL.md"
+echo "Found ${#skill_names[@]} skill(s) in ${SKILLS_SOURCE}/: ${skill_names[*]}"
+
+# --- Copy skills, excluding *.go and dotfiles, preserving subdirectories ---
+
+copy_skills() {
+  local skills_dir="$1" name dest
+  for name in "${skill_names[@]}"; do
+    dest="${skills_dir}/${name}"
+    rm -rf "${dest:?}"
+    mkdir -p "$dest"
+    (cd "${SKILLS_SOURCE}/${name}" && find . -type f ! -name '*.go' ! -name '.*' ! -path '*/.*/*' -print0) |
+      while IFS= read -r -d '' file; do
+        mkdir -p "${dest}/$(dirname "$file")"
+        cp "${SKILLS_SOURCE}/${name}/${file}" "${dest}/${file}"
+      done
+  done
+}
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+# --- DRY_RUN=local without a target: what would be published ---
+
+if [[ "$DRY_RUN" == "local" && -z "$SKILLS_TARGET" ]]; then
+  preview="${tmpdir}/preview"
+  echo "DRY_RUN=local: copying skills into ${preview}"
+  copy_skills "${preview}/${SKILLS_SUBDIR}"
+  echo ""
+  echo "=== Skills copied ==="
+  find "$preview" -type f | LC_ALL=C sort | while read -r file; do
+    echo "  ${file#"${preview}/"}"
+  done
+  echo ""
+  echo "=== Diff (against empty baseline) ==="
+  git -C "$preview" init -q
+  git -C "$preview" add -A
+  git -C "$preview" diff --cached --stat
+  echo ""
+  echo "DRY_RUN=local complete. No network operations performed."
+  exit 0
 fi
 
-# Clone the skills repo (skipped for local dry-run)
-WORK_DIR=$(mktemp -d)
-trap 'rm -rf "$WORK_DIR"' EXIT
-
-if [ "$DRY_RUN" = "local" ] && [ -z "$SKILLS_TOKEN" ]; then
-  echo "Local dry-run: creating stub target directory..."
-  mkdir -p "$WORK_DIR/skills-repo"
-  (cd "$WORK_DIR/skills-repo" && git init -q)
-else
-  echo "Cloning ${SKILLS_REPO}..."
-  # Use a temp gitconfig so the token never appears in process args
-  TEMP_GITCONFIG="${WORK_DIR}/.gitconfig"
-  cat > "$TEMP_GITCONFIG" <<GITCFG
+# --- Git configuration for the target ---
+#
+# A private global config for every git call below: the token goes in as a URL
+# rewrite so it never appears in argv or in the remote URL, and nothing from the
+# ambient environment (signing, hooks, defaults) reaches the target.
+export GIT_CONFIG_GLOBAL="${tmpdir}/gitconfig"
+: > "$GIT_CONFIG_GLOBAL"
+chmod 600 "$GIT_CONFIG_GLOBAL"
+if [[ -n "$SKILLS_TOKEN" ]]; then
+  cat >> "$GIT_CONFIG_GLOBAL" <<GITCFG
 [url "https://x-access-token:${SKILLS_TOKEN}@github.com/"]
 	insteadOf = https://github.com/
 GITCFG
-  chmod 600 "$TEMP_GITCONFIG"
-  GIT_CONFIG_GLOBAL="$TEMP_GITCONFIG" git clone "https://github.com/${SKILLS_REPO}.git" "$WORK_DIR/skills-repo"
 fi
 
-TARGET_DIR="${WORK_DIR}/skills-repo"
+# --- Clone the target, or take the checkout given ---
 
-# Collect skill directories from source
-SKILL_DIRS=()
-for skill_dir in "${SKILLS_DIR}"/*/; do
-  if [[ -f "${skill_dir}/SKILL.md" ]]; then
-    SKILL_DIRS+=("$skill_dir")
+if [[ -n "$SKILLS_TARGET" ]]; then
+  [[ -d "${SKILLS_TARGET}/.git" ]] || die "SKILLS_TARGET '${SKILLS_TARGET}' is not a git checkout"
+  target="$SKILLS_TARGET"
+  echo "Syncing into ${target}"
+else
+  [[ -n "$SKILLS_TOKEN" ]] || die "SKILLS_TOKEN is required (set DRY_RUN=local for offline testing)"
+  target="${tmpdir}/skills"
+  echo "Cloning ${TARGET_REPO} into ${target}..."
+  git clone -q --depth 1 --branch "$TARGET_BRANCH" "https://github.com/${TARGET_REPO}.git" "$target"
+fi
+
+assert_remote_url "$target"
+assert_branch "$target"
+
+# --- Refuse a name another source has published ---
+
+for name in "${skill_names[@]}"; do
+  if other=$(claimed_by_other "$name"); then
+    die "skills/${name} is published by ${other} (listed in ${LEGACY_MANIFEST}.${other}); rename the skill or settle ownership upstream"
   fi
 done
 
-if [[ ${#SKILL_DIRS[@]} -eq 0 ]]; then
-  echo "No skills found in ${SKILLS_DIR}/"
+# --- Publish this source's skills ---
+
+echo "Copying skills into ${target}/${SKILLS_SUBDIR}/..."
+copy_skills "${target}/${SKILLS_SUBDIR}"
+
+# --- Remove what this source published before and no longer has ---
+
+previously_published=()
+while IFS= read -r name; do
+  previously_published+=("$name")
+done < <(read_manifest "${target}/${MANIFEST}")
+
+if [[ ! -f "${target}/${MANIFEST}" ]]; then
+  echo "No ${MANIFEST} yet: first run for ${SYNC_SOURCE}, removing nothing"
+fi
+
+for name in ${previously_published[@]+"${previously_published[@]}"}; do
+  in_list "$name" "${skill_names[@]}" && continue
+  if other=$(claimed_by_other "$name"); then
+    warn "skills/${name} is no longer in ${SYNC_SOURCE}'s skills but ${other} lists it in ${LEGACY_MANIFEST}.${other}; leaving it in place"
+    continue
+  fi
+  if [[ -d "${target}/${SKILLS_SUBDIR}/${name}" ]]; then
+    echo "Removing stale skill: ${name}"
+    rm -rf "${target:?}/${SKILLS_SUBDIR}/${name}"
+  fi
+done
+
+# --- Write this source's manifest and the legacy tombstone ---
+
+printf '%s\n' "${skill_names[@]}" | LC_ALL=C sort > "${target}/${MANIFEST}"
+
+cat > "${target}/${LEGACY_MANIFEST}" <<'TOMBSTONE'
+# Superseded by the per-source manifests (.managed-skills.<cli>), one per publishing CLI.
+# Each CLI deletes only the skill directories listed in its own manifest.
+# Kept so a CLI still running the pre-fix sync script deletes nothing: that script skips
+# every line it cannot parse as a skill name and only deletes names it can.
+TOMBSTONE
+
+# --- Commit ---
+
+git -C "$target" add -A
+
+if git -C "$target" diff --cached --quiet; then
+  echo "No changes to commit. Skills are already up to date."
   exit 0
 fi
 
-echo "Found ${#SKILL_DIRS[@]} skill(s) to sync"
-
-# Copy skills to target repo
-MANAGED_SKILLS=()
-for skill_dir in "${SKILL_DIRS[@]}"; do
-  skill_name=$(basename "$skill_dir")
-  dest="${TARGET_DIR}/${CLI_NAME}/${skill_name}"
-
-  echo "  Syncing ${skill_name}..."
-  mkdir -p "$dest"
-
-  # Copy non-Go, non-dotfiles preserving subdirectory structure
-  (cd "$skill_dir" && find . -type f ! -name '*.go' ! -name '.*' | while read -r f; do
-    mkdir -p "$dest/$(dirname "$f")"
-    cp "$f" "$dest/$f"
-  done)
-
-  MANAGED_SKILLS+=("${CLI_NAME}/${skill_name}")
-done
-
-# Update managed manifest
-MANIFEST_PATH="${TARGET_DIR}/${MANAGED_MANIFEST}"
-if [[ -f "$MANIFEST_PATH" ]]; then
-  # Remove stale entries for this CLI
-  grep -v "^${CLI_NAME}/" "$MANIFEST_PATH" > "${MANIFEST_PATH}.tmp" || true
-  mv "${MANIFEST_PATH}.tmp" "$MANIFEST_PATH"
-fi
-
-# Append current skills
-for skill in "${MANAGED_SKILLS[@]}"; do
-  echo "$skill" >> "$MANIFEST_PATH"
-done
-sort -u -o "$MANIFEST_PATH" "$MANIFEST_PATH"
-
-# Check for stale skills to remove
-if [[ -d "${TARGET_DIR}/${CLI_NAME}" ]]; then
-  for existing in "${TARGET_DIR}/${CLI_NAME}"/*/; do
-    existing_name=$(basename "$existing")
-    found=false
-    for skill_dir in "${SKILL_DIRS[@]}"; do
-      if [[ "$(basename "$skill_dir")" == "$existing_name" ]]; then
-        found=true
-        break
-      fi
-    done
-    if [[ "$found" == "false" ]]; then
-      echo "  Removing stale skill: ${existing_name}"
-      rm -rf "$existing"
-    fi
-  done
-fi
+echo ""
+echo "=== Changes ==="
+git -C "$target" diff --cached --stat
+echo ""
 
 if [[ "$DRY_RUN" == "remote" ]]; then
-  echo "DRY_RUN=remote: skipping commit and push"
+  echo "DRY_RUN=remote: skipping commit and push."
+  echo ""
+  echo "=== Full diff ==="
+  git -C "$target" diff --cached
   exit 0
 fi
 
-# Commit and push
-cd "$TARGET_DIR"
-git add -A
+git -C "$target" \
+  -c user.name="${SYNC_SOURCE}[bot]" \
+  -c user.email="${SYNC_SOURCE}[bot]@users.noreply.github.com" \
+  commit -q -m "$(cat <<EOF
+Sync skills from ${SYNC_SOURCE} ${RELEASE_TAG}
 
-if git diff --cached --quiet; then
-  echo "No changes to commit"
-  exit 0
-fi
-
-git config user.name "${CLI_NAME}-cli[bot]"
-git config user.email "${CLI_NAME}-cli[bot]@users.noreply.github.com"
-
-git commit -m "$(cat <<EOF
-Sync ${CLI_NAME} skills from ${RELEASE_TAG}
-
-Source: ${SOURCE_SHA}
+Source: ${SOURCE_REPO}@${SOURCE_SHA}
 EOF
 )"
 
 if [[ "$DRY_RUN" == "local" ]]; then
-  echo "DRY_RUN=local: skipping push"
+  echo "DRY_RUN=local: committed in ${target}, skipping push."
   exit 0
 fi
 
-echo "Pushing to ${SKILLS_REPO}..."
-if ! git push origin main; then
-  echo "Push failed, retrying after pull..."
-  git pull --rebase origin main
-  git push origin main
+# --- Push, with one retry on non-fast-forward ---
+
+push_target() {
+  git -C "$target" push origin "$TARGET_BRANCH" 2>&1
+}
+
+if ! output=$(push_target); then
+  if echo "$output" | grep -qi "non-fast-forward"; then
+    echo "Push rejected (non-fast-forward). Pulling with rebase and retrying..."
+    git -C "$target" pull --rebase origin "$TARGET_BRANCH"
+    if ! retry_output=$(push_target); then
+      echo "$retry_output" >&2
+      die "Push failed after retry"
+    fi
+  else
+    echo "$output" >&2
+    die "Push failed"
+  fi
 fi
 
-echo "Skills synced successfully"
+echo ""
+echo "Skills synced to ${TARGET_REPO} (${TARGET_BRANCH}) from ${SYNC_SOURCE} ${RELEASE_TAG}"
