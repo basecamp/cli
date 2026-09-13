@@ -20,7 +20,11 @@
 # every run as a comment-only tombstone. The pre-fix script skips any line it cannot
 # parse as a skill name, but treats a missing file as licence to own every skills/*
 # directory — so the tombstone is what stops an un-upgraded sibling from deleting
-# anyone's skills, whichever CLI upgrades first (basecamp/skills#5).
+# anyone's skills, whichever CLI upgrades first (basecamp/skills#5). One case is
+# accepted: a skill a still-pre-fix sibling drops after the tombstone exists stays
+# behind in the target (that script has no names left to delete by, and the
+# sibling's own first run here removes nothing) — a lingering directory to remove
+# by hand, which beats guessing ownership from the legacy file.
 #
 # Required env vars:
 #   RELEASE_TAG    — the release tag (e.g. v1.2.3)
@@ -115,9 +119,11 @@ claimed_by_other() {
   return 1
 }
 
+# The URL as configured: `remote get-url` would show it after any insteadOf rewrite,
+# so an operator's rewrite could satisfy this check with a repo that is not the target.
 assert_remote_url() {
   local url stripped
-  url=$(git -C "$1" remote get-url origin)
+  url=$(git -C "$1" config --get remote.origin.url)
   stripped="${url%.git}"
   case "$stripped" in
     "https://github.com/${TARGET_REPO}") ;;
@@ -196,11 +202,16 @@ fi
 
 # --- Git configuration for the target ---
 #
-# A private global config for every git call below: the token goes in as a URL
+# A private global config for every git call below: the bot is the identity for
+# the commit and for the rebase a retried push needs, the token goes in as a URL
 # rewrite so it never appears in argv or in the remote URL, and nothing from the
 # ambient environment (signing, hooks, defaults) reaches the target.
 export GIT_CONFIG_GLOBAL="${tmpdir}/gitconfig"
-: > "$GIT_CONFIG_GLOBAL"
+cat > "$GIT_CONFIG_GLOBAL" <<GITCFG
+[user]
+	name = ${SYNC_SOURCE}[bot]
+	email = ${SYNC_SOURCE}[bot]@users.noreply.github.com
+GITCFG
 chmod 600 "$GIT_CONFIG_GLOBAL"
 if [[ -n "$SKILLS_TOKEN" ]]; then
   cat >> "$GIT_CONFIG_GLOBAL" <<GITCFG
@@ -224,6 +235,8 @@ fi
 
 assert_remote_url "$target"
 assert_branch "$target"
+# `git add -A` below would sweep anything else in the checkout into the sync commit.
+[[ -z "$(git -C "$target" status --porcelain)" ]] || die "${target} has uncommitted changes; commit or stash them before syncing into it"
 
 # --- Refuse a name another source has published ---
 
@@ -294,10 +307,7 @@ if [[ "$DRY_RUN" == "remote" ]]; then
   exit 0
 fi
 
-git -C "$target" \
-  -c user.name="${SYNC_SOURCE}[bot]" \
-  -c user.email="${SYNC_SOURCE}[bot]@users.noreply.github.com" \
-  commit -q -m "$(cat <<EOF
+git -C "$target" commit -q -m "$(cat <<EOF
 Sync skills from ${SYNC_SOURCE} ${RELEASE_TAG}
 
 Source: ${SOURCE_REPO}@${SOURCE_SHA}
@@ -309,15 +319,18 @@ if [[ "$DRY_RUN" == "local" ]]; then
   exit 0
 fi
 
-# --- Push, with one retry on non-fast-forward ---
+# --- Push, with one retry when another publisher got there first ---
+#
+# A fresh clone racing a sibling's push is rejected as "fetch first"; a clone whose
+# tracking ref already knows the remote moved, as "non-fast-forward".
 
 push_target() {
   git -C "$target" push origin "$TARGET_BRANCH" 2>&1
 }
 
 if ! output=$(push_target); then
-  if echo "$output" | grep -qi "non-fast-forward"; then
-    echo "Push rejected (non-fast-forward). Pulling with rebase and retrying..."
+  if echo "$output" | grep -Eqi "fetch first|non-fast-forward"; then
+    echo "Push rejected (the remote has moved). Pulling with rebase and retrying..."
     git -C "$target" pull --rebase origin "$TARGET_BRANCH"
     if ! retry_output=$(push_target); then
       echo "$retry_output" >&2

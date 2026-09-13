@@ -245,7 +245,36 @@ assert_output "skills/hey/reference/commands.md"
 assert_output "No network operations performed"
 if grep -q "embed.go" "$out"; then not_ok "preview leaves out embed.go"; else ok "preview leaves out embed.go"; fi
 
+# --- Another publisher pushes first: the push is retried after a rebase ---
+
+echo "# a concurrent publisher wins the race to origin"
+origin="${work}/origin.git"
+git init -q --bare -b main "$origin"
+git -C "$target" push -q "$origin" main
+sibling="${work}/sibling"
+git clone -q "$origin" "$sibling"
+echo "# skills (sibling)" > "${sibling}/README.md"
+git -C "$sibling" commit -q -am "Sync skills from basecamp-cli v0.0.1 (concurrent)"
+git -C "$sibling" push -q origin main
+echo "hey v4" > "${a}/skills/hey/SKILL.md"
+# A real push, with github.com/basecamp/skills routed to the local bare repo through
+# the environment — the script's private gitconfig cannot hide that.
+sync hey-cli "$a" SKILLS_TARGET="$target" \
+  GIT_CONFIG_COUNT=1 "GIT_CONFIG_KEY_0=url.${origin}.insteadOf" GIT_CONFIG_VALUE_0=https://github.com/basecamp/skills.git
+assert_output "Push rejected"
+assert_output "Skills synced to basecamp/skills"
+assert "origin main holds the sibling's commit then the sync" \
+  test "$(git -C "$origin" log --format=%s -2 main | tr '\n' '|')" = "Sync skills from hey-cli v9.9.9|Sync skills from basecamp-cli v0.0.1 (concurrent)|"
+assert_content skills/hey/SKILL.md "hey v4"
+assert_clean
+
 # --- Safety asserts on the checkout ---
+
+echo "# a checkout with uncommitted changes is refused"
+echo "stray" > "${target}/stray.txt"
+sync_expecting_failure hey-cli "$a" DRY_RUN=local SKILLS_TARGET="$target"
+assert_output "has uncommitted changes"
+rm "${target}/stray.txt"
 
 echo "# a checkout that is not basecamp/skills on main is refused"
 wrong="${work}/wrong-remote"
