@@ -38,6 +38,9 @@ jobs:
       - name: Test
         run: go test -v ./...
 
+      - name: Test the skills sync
+        run: seed/scripts/test-sync-skills.sh
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

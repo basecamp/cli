@@ -82,7 +82,7 @@ jobs:
 
       - name: Run release quality gate
         run: |
-          make fmt-check vet lint test test-e2e check-surface
+          make fmt-check vet lint test test-e2e test-sync-skills check-surface
           go test -race -count=1 ./...
 
       - name: Run govulncheck

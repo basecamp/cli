@@ -170,7 +170,6 @@ jobs:
       - name: Sync skills
         if: steps.check.outputs.ready == 'true'
         env:
-          CLI_NAME: cli
           SKILLS_TOKEN: ${{ steps.skills-token.outputs.token }}
           RELEASE_TAG: ${{ github.ref_name }}
           SOURCE_SHA: ${{ github.sha }}

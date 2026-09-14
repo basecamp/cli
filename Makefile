@@ -1,13 +1,18 @@
 .DEFAULT_GOAL := check
 
-.PHONY: check test test-race vet lint fmt fmt-check bench check-all \
+.PHONY: check test test-sync-skills test-race vet lint fmt fmt-check bench check-all \
        tidy tidy-check replace-check vuln secrets security release-check release
 
 # Default target: fast checks for inner-loop dev.
-check: fmt-check vet test
+check: fmt-check vet test test-sync-skills
 
 test:
 	go test ./...
+
+# The skills sync (seed/scripts/sync-skills.sh, which scripts/sync-skills.sh runs)
+# against a throwaway basecamp/skills, as two CLIs publishing in turn
+test-sync-skills:
+	seed/scripts/test-sync-skills.sh
 
 test-race:
 	go test -race ./...
@@ -79,7 +84,7 @@ lint-actions:
 	zizmor .
 
 # Full suite: everything CI runs.
-check-all: fmt-check vet lint lint-actions test-race bench tidy-check
+check-all: fmt-check vet lint lint-actions test-race test-sync-skills bench tidy-check
 
 # Full pre-flight for release
 release-check: check-all replace-check vuln secrets
