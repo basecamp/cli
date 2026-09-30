@@ -47,9 +47,10 @@ const (
 // probeSeq numbers this process's probes so no two share an account.
 var probeSeq atomic.Uint64
 
-// keyring operations, extracted as vars so tests can observe the entry
-// probeDirect writes and removes without a live keyring.
+// keyring operations, extracted as vars so tests can exercise storage and
+// probing without a live keyring.
 var (
+	keyringGet    = keyring.Get
 	keyringSet    = keyring.Set
 	keyringDelete = keyring.Delete
 )

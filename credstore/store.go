@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"time"
-
-	"github.com/zalando/go-keyring"
 )
 
 // StoreOptions configures credential storage.
@@ -50,6 +48,13 @@ type StoreOptions struct {
 	// that mock the keyring should use a zero ProbeTimeout (the unbounded
 	// probe goes through go-keyring and honors the mock) or ForceFile.
 	ProbeTimeout time.Duration
+
+	// OperationTimeout bounds keyring reads, writes, and deletes after a
+	// successful probe. Zero or negative preserves unbounded operations.
+	// A timeout is an error, never a transition to plaintext file storage.
+	// go-keyring cannot cancel an operation already started: it may finish
+	// after the timeout, so the store refuses further keyring operations.
+	OperationTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.
 	FallbackDir string
@@ -116,7 +121,7 @@ func (s *Store) key(name string) string {
 // the keyring and only this process could not reach it.
 func (s *Store) Load(key string) ([]byte, error) {
 	if s.useKeyring {
-		data, err := keyring.Get(s.serviceName, s.key(key))
+		data, err := keyringGet(s.serviceName, s.key(key))
 		if err != nil {
 			return nil, fmt.Errorf("credentials not found: %w", err)
 		}
@@ -133,7 +138,7 @@ func (s *Store) Load(key string) ([]byte, error) {
 // Save stores credentials for the given key.
 func (s *Store) Save(key string, data []byte) error {
 	if s.useKeyring {
-		return keyring.Set(s.serviceName, s.key(key), string(data))
+		return keyringSet(s.serviceName, s.key(key), string(data))
 	}
 	return s.saveToFile(key, data)
 }
@@ -141,7 +146,7 @@ func (s *Store) Save(key string, data []byte) error {
 // Delete removes credentials for the given key.
 func (s *Store) Delete(key string) error {
 	if s.useKeyring {
-		return keyring.Delete(s.serviceName, s.key(key))
+		return keyringDelete(s.serviceName, s.key(key))
 	}
 	return s.deleteFromFile(key)
 }
