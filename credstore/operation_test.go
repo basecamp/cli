@@ -73,7 +73,8 @@ func TestKeyringOperationTimeout(t *testing.T) {
 			select {
 			case operationErr := <-result:
 				require.ErrorIs(t, operationErr, context.DeadlineExceeded)
-				assert.ErrorContains(t, operationErr, "keyring")
+				assert.ErrorContains(t, operationErr, "may still complete")
+				assert.NotContains(t, operationErr.Error(), "not found", "a hung keyring is not a missing login")
 			case <-time.After(time.Second):
 				releaseOnce.Do(func() { close(release) })
 				<-result
@@ -84,6 +85,7 @@ func TestKeyringOperationTimeout(t *testing.T) {
 			assert.Empty(t, store.FallbackWarning())
 			_, err = store.Load("work")
 			assert.ErrorIs(t, err, context.DeadlineExceeded)
+			assert.NotContains(t, err.Error(), "not found", "a hung keyring is not a missing login")
 			assert.ErrorIs(t, store.Save("work", []byte("newer-token")), context.DeadlineExceeded)
 			assert.ErrorIs(t, store.Delete("work"), context.DeadlineExceeded)
 			assert.EqualValues(t, 1, calls.Load(), "a stalled operation poisons this store, not the process")
@@ -133,6 +135,8 @@ func TestWaitingForKeyringOperationAlsoHasADeadline(t *testing.T) {
 	store.operationGate <- struct{}{}
 	_, err := store.Load("work")
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.ErrorContains(t, err, "waiting for another operation")
+	assert.NotContains(t, err.Error(), "may still complete")
 	assert.Zero(t, calls.Load(), "a queued call must not reach the provider after its deadline")
 	<-store.operationGate
 	data, err := store.Load("work")
