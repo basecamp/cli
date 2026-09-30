@@ -66,6 +66,10 @@ type Store struct {
 	useKeyring  bool
 	fallbackDir string
 
+	operationTimeout time.Duration
+	operationGate    chan struct{}
+	operationErr     error // guarded by operationGate
+
 	// probeErr is why the keyring probe failed when the store fell back to
 	// file storage against the caller's wishes. Nil when the keyring is in
 	// use and when file storage was requested (ForceFile, DisableEnvVar):
@@ -82,10 +86,12 @@ func NewStore(opts StoreOptions) *Store {
 
 	err := probeKeyring(opts.ServiceName, opts.ProbeTimeout)
 	return &Store{
-		serviceName: opts.ServiceName,
-		useKeyring:  err == nil,
-		fallbackDir: opts.FallbackDir,
-		probeErr:    err,
+		serviceName:      opts.ServiceName,
+		useKeyring:       err == nil,
+		fallbackDir:      opts.FallbackDir,
+		probeErr:         err,
+		operationTimeout: opts.OperationTimeout,
+		operationGate:    make(chan struct{}, 1),
 	}
 }
 
@@ -121,11 +127,14 @@ func (s *Store) key(name string) string {
 // the keyring and only this process could not reach it.
 func (s *Store) Load(key string) ([]byte, error) {
 	if s.useKeyring {
-		data, err := keyringGet(s.serviceName, s.key(key))
+		data, err := s.keyringOperation("read", func() ([]byte, error) {
+			secret, err := keyringGet(s.serviceName, s.key(key))
+			return []byte(secret), err
+		})
 		if err != nil {
 			return nil, fmt.Errorf("credentials not found: %w", err)
 		}
-		return []byte(data), nil
+		return data, nil
 	}
 
 	data, err := s.loadFromFile(key)
@@ -138,7 +147,11 @@ func (s *Store) Load(key string) ([]byte, error) {
 // Save stores credentials for the given key.
 func (s *Store) Save(key string, data []byte) error {
 	if s.useKeyring {
-		return keyringSet(s.serviceName, s.key(key), string(data))
+		secret := string(data)
+		_, err := s.keyringOperation("write", func() ([]byte, error) {
+			return nil, keyringSet(s.serviceName, s.key(key), secret)
+		})
+		return err
 	}
 	return s.saveToFile(key, data)
 }
@@ -146,7 +159,10 @@ func (s *Store) Save(key string, data []byte) error {
 // Delete removes credentials for the given key.
 func (s *Store) Delete(key string) error {
 	if s.useKeyring {
-		return keyringDelete(s.serviceName, s.key(key))
+		_, err := s.keyringOperation("delete", func() ([]byte, error) {
+			return nil, keyringDelete(s.serviceName, s.key(key))
+		})
+		return err
 	}
 	return s.deleteFromFile(key)
 }
