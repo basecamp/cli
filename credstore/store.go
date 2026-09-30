@@ -1,6 +1,8 @@
 package credstore
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -131,6 +133,9 @@ func (s *Store) Load(key string) ([]byte, error) {
 			secret, err := keyringGet(s.serviceName, s.key(key))
 			return []byte(secret), err
 		})
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		if err != nil {
 			return nil, fmt.Errorf("credentials not found: %w", err)
 		}
