@@ -25,24 +25,12 @@ This repo is the shared Go toolkit that powers all three CLIs. It provides reusa
 
 ### Credential-store deadlines
 
-`credstore.StoreOptions` has two independent, opt-in deadlines:
-
-- `ProbeTimeout` bounds initialization. A failed or timed-out probe selects the
-  file fallback; callers should surface `FallbackWarning()` on reads and writes.
-- `OperationTimeout` bounds keyring reads, writes, deletes, and each migration
-  write after a successful probe. A timeout returns an error wrapping
-  `context.DeadlineExceeded`; it never changes the store to plaintext or reads a
-  potentially stale fallback file.
-
-Both default to zero (unbounded), so existing consumers retain their behavior.
-The operation deadline includes waiting behind another operation on the same
-store. File operations are unaffected.
-
-`go-keyring` cannot cancel an operation that has already started. A timed-out
-write or delete may still complete, and this store refuses subsequent keyring
-operations even if the abandoned call later succeeds. There is at most one
-abandoned operation per store. A new store or process can try again; callers
-should not retry an unknown write automatically or treat it as a missing login.
+`credstore.StoreOptions` has two independent, opt-in deadlines, both unbounded
+by default: `ProbeTimeout` bounds initialization (a failed probe selects the
+file fallback), and `OperationTimeout` bounds keyring operations after a
+successful probe (a timeout is an error, never a fallback to plaintext). See
+their doc comments in [`credstore/store.go`](credstore/store.go) for the full
+contract.
 
 ## Seed templates
 
