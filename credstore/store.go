@@ -51,11 +51,20 @@ type StoreOptions struct {
 	// probe goes through go-keyring and honors the mock) or ForceFile.
 	ProbeTimeout time.Duration
 
-	// OperationTimeout bounds keyring reads, writes, and deletes after a
-	// successful probe. Zero or negative preserves unbounded operations.
-	// A timeout is an error, never a transition to plaintext file storage.
-	// go-keyring cannot cancel an operation already started: it may finish
-	// after the timeout, so the store refuses further keyring operations.
+	// OperationTimeout bounds keyring reads, writes, and deletes (including
+	// each MigrateToKeyring write) after a successful probe, independently of
+	// ProbeTimeout. Zero or negative preserves unbounded operations. File
+	// storage is never bounded. The deadline includes waiting behind another
+	// operation on the same store.
+	//
+	// A timeout returns an error wrapping context.DeadlineExceeded — never a
+	// transition to plaintext file storage or a read of a possibly stale
+	// fallback file. go-keyring cannot cancel an operation already started:
+	// a timed-out write or delete may still complete, so the store refuses
+	// all further keyring operations, even if the abandoned call later
+	// succeeds. This bounds abandoned operations to one per store. A new
+	// store or process can try again; callers should not retry an unknown
+	// write automatically or report the timeout as a missing login.
 	OperationTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.
