@@ -57,11 +57,11 @@ func TestKeyringOperationTimeout(t *testing.T) {
 			go func() {
 				switch operation {
 				case "load":
-					data, err := store.Load("work")
+					data, loadErr := store.Load("work")
 					if len(data) != 0 {
-						err = errors.New("timed-out read returned credential data")
+						loadErr = errors.New("timed-out read returned credential data")
 					}
-					result <- err
+					result <- loadErr
 				case "save":
 					result <- store.Save("work", []byte("new-token"))
 				case "delete":
@@ -71,9 +71,9 @@ func TestKeyringOperationTimeout(t *testing.T) {
 				}
 			}()
 			select {
-			case err := <-result:
-				require.ErrorIs(t, err, context.DeadlineExceeded)
-				assert.ErrorContains(t, err, "keyring")
+			case operationErr := <-result:
+				require.ErrorIs(t, operationErr, context.DeadlineExceeded)
+				assert.ErrorContains(t, operationErr, "keyring")
 			case <-time.After(time.Second):
 				releaseOnce.Do(func() { close(release) })
 				<-result
@@ -90,6 +90,13 @@ func TestKeyringOperationTimeout(t *testing.T) {
 			after, err := os.ReadFile(file.credentialsPath())
 			require.NoError(t, err)
 			assert.Equal(t, before, after, "timeout must neither change nor remove the fallback file")
+
+			// A late success is not permission to resume writes whose order
+			// relative to the timed-out write/delete cannot be established.
+			releaseOnce.Do(func() { close(release) })
+			<-finished
+			assert.ErrorIs(t, store.Save("work", []byte("late-token")), context.DeadlineExceeded)
+			assert.EqualValues(t, 1, calls.Load())
 		})
 	}
 }
@@ -112,6 +119,25 @@ func TestBoundedKeyringKeepsHealthyResultsAndErrors(t *testing.T) {
 	assert.Equal(t, "token", string(data))
 	assert.ErrorIs(t, store.Save("work", data), providerErr)
 	assert.NoError(t, store.Delete("work"), "an ordinary provider error must not poison the store")
+}
+
+func TestWaitingForKeyringOperationAlsoHasADeadline(t *testing.T) {
+	stubProbe(t, func(string, time.Duration) error { return nil })
+	var calls atomic.Int32
+	swapKeyringOperations(t,
+		func(string, string) (string, error) { calls.Add(1); return "token", nil },
+		func(string, string, string) error { return nil },
+		func(string, string) error { return nil },
+	)
+	store := NewStore(StoreOptions{ServiceName: "test", OperationTimeout: 40 * time.Millisecond})
+	store.operationGate <- struct{}{}
+	_, err := store.Load("work")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Zero(t, calls.Load(), "a queued call must not reach the provider after its deadline")
+	<-store.operationGate
+	data, err := store.Load("work")
+	require.NoError(t, err, "timing out before calling the provider must not poison the store")
+	assert.Equal(t, "token", string(data))
 }
 
 func TestZeroOperationTimeoutPreservesUnboundedCalls(t *testing.T) {

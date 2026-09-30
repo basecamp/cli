@@ -23,6 +23,27 @@ This repo is the shared Go toolkit that powers all three CLIs. It provides reusa
 | `profile` | `github.com/basecamp/cli/profile` | Named environment profiles for targeting different accounts or environments |
 | `surface` | `github.com/basecamp/cli/surface` | CLI surface snapshot and compatibility diffing for Cobra command trees |
 
+### Credential-store deadlines
+
+`credstore.StoreOptions` has two independent, opt-in deadlines:
+
+- `ProbeTimeout` bounds initialization. A failed or timed-out probe selects the
+  file fallback; callers should surface `FallbackWarning()` on reads and writes.
+- `OperationTimeout` bounds keyring reads, writes, deletes, and each migration
+  write after a successful probe. A timeout returns an error wrapping
+  `context.DeadlineExceeded`; it never changes the store to plaintext or reads a
+  potentially stale fallback file.
+
+Both default to zero (unbounded), so existing consumers retain their behavior.
+The operation deadline includes waiting behind another operation on the same
+store. File operations are unaffected.
+
+`go-keyring` cannot cancel an operation that has already started. A timed-out
+write or delete may still complete, and this store refuses subsequent keyring
+operations even if the abandoned call later succeeds. There is at most one
+abandoned operation per store. A new store or process can try again; callers
+should not retry an unknown write automatically or treat it as a missing login.
+
 ## Seed templates
 
 The `seed/` directory contains templates for bootstrapping a new 37signals Go CLI. Templates include project scaffolding for auth, commands, output formatting, distribution, skills, and CI.
