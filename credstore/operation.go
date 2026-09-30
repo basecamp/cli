@@ -26,8 +26,8 @@ func (s *Store) keyringOperation(operation string, fn func() ([]byte, error)) ([
 	if s.operationErr != nil {
 		return nil, fmt.Errorf("keyring unavailable after an earlier timeout: %w", s.operationErr)
 	}
-	if ctx.Err() != nil {
-		return nil, queueTimeoutError(operation, s.operationTimeout, ctx.Err())
+	if err := operationDeadlineError(ctx); err != nil {
+		return nil, queueTimeoutError(operation, s.operationTimeout, err)
 	}
 
 	type result struct {
@@ -41,11 +41,31 @@ func (s *Store) keyringOperation(operation string, fn func() ([]byte, error)) ([
 	}()
 	select {
 	case r := <-done:
-		return r.data, r.err
+		return s.keyringOperationResult(ctx, operation, r.data, r.err)
 	case <-ctx.Done():
-		s.operationErr = fmt.Errorf("keyring %s timed out after %s (the operation may still complete): %w", operation, s.operationTimeout, ctx.Err())
+		return s.keyringOperationResult(ctx, operation, nil, ctx.Err())
+	}
+}
+
+// keyringOperationResult is called with operationGate held, after dispatching
+// the provider call. Deadline expiry wins even when the result was selected first.
+func (s *Store) keyringOperationResult(ctx context.Context, operation string, data []byte, providerErr error) ([]byte, error) {
+	if err := operationDeadlineError(ctx); err != nil {
+		s.operationErr = fmt.Errorf("keyring %s timed out after %s (the operation may have completed or may still complete): %w", operation, s.operationTimeout, err)
 		return nil, s.operationErr
 	}
+	return data, providerErr
+}
+
+func operationDeadlineError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Timer delivery can lag behind the deadline when the scheduler is busy.
+	if deadline, ok := ctx.Deadline(); ok && !time.Now().Before(deadline) {
+		return context.DeadlineExceeded
+	}
+	return nil
 }
 
 func queueTimeoutError(operation string, timeout time.Duration, err error) error {

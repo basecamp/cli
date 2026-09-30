@@ -65,6 +65,11 @@ type StoreOptions struct {
 	// succeeds. This bounds abandoned operations to one per store. A new
 	// store or process can try again; callers should not retry an unknown
 	// write automatically or report the timeout as a missing login.
+	//
+	// If the deadline expires while waiting behind another operation, the
+	// queued call is not attempted and cannot complete later. That queue
+	// timeout does not itself make the store refuse further operations;
+	// the already-running provider call may independently time out and do so.
 	OperationTimeout time.Duration
 
 	// FallbackDir is the directory for file-based credential storage.
