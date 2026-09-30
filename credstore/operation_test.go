@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -157,4 +158,148 @@ func TestZeroOperationTimeoutPreservesUnboundedCalls(t *testing.T) {
 	assert.Equal(t, "token", string(data))
 	assert.NoError(t, store.Save("work", data))
 	assert.NoError(t, store.Delete("work"))
+}
+
+func TestKeyringOperationResultRejectsExpiredDeadline(t *testing.T) {
+	for _, operation := range []string{"read", "write", "delete"} {
+		for _, timerDelivered := range []bool{true, false} {
+			name := operation + "/timer-pending"
+			if timerDelivered {
+				name = operation + "/timer-delivered"
+			}
+			t.Run(name, func(t *testing.T) {
+				stubProbe(t, func(string, time.Duration) error { return nil })
+				var calls atomic.Int32
+				swapKeyringOperations(t, nil,
+					func(string, string, string) error { calls.Add(1); return nil }, nil)
+				store := NewStore(StoreOptions{ServiceName: "test", OperationTimeout: time.Second})
+
+				deadline := time.Now().Add(-time.Second)
+				var ctx context.Context
+				if timerDelivered {
+					var cancel context.CancelFunc
+					ctx, cancel = context.WithDeadline(context.Background(), deadline)
+					t.Cleanup(cancel)
+					require.ErrorIs(t, ctx.Err(), context.DeadlineExceeded)
+				} else {
+					parent, cancel := context.WithCancel(context.Background())
+					t.Cleanup(cancel)
+					ctx = pendingDeadlineContext{Context: parent, deadline: deadline}
+					require.NoError(t, ctx.Err())
+				}
+
+				// Model selecting the provider's successful result after expiry,
+				// whether or not the deadline timer has delivered its signal yet.
+				store.operationGate <- struct{}{}
+				data, err := store.keyringOperationResult(ctx, operation, []byte("late-token"), nil)
+				<-store.operationGate
+				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.Empty(t, data)
+				assert.ErrorContains(t, err, "may have completed")
+				assert.ErrorIs(t, store.Save("work", []byte("retry")), context.DeadlineExceeded)
+				assert.Zero(t, calls.Load(), "a late result must not permit another provider call")
+				assert.True(t, store.UsingKeyring())
+			})
+		}
+	}
+}
+
+// pendingDeadlineContext models an expired deadline whose timer callback has
+// not yet closed Done or set Err, as can happen when the scheduler is busy.
+type pendingDeadlineContext struct {
+	context.Context
+	deadline time.Time
+}
+
+func (c pendingDeadlineContext) Deadline() (time.Time, bool) {
+	return c.deadline, true
+}
+
+func TestConcurrentKeyringCallsBehindStalledProvider(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		stubProbe(t, func(string, time.Duration) error { return nil })
+		file := NewStore(StoreOptions{ForceFile: true, FallbackDir: t.TempDir()})
+		require.NoError(t, file.Save("work", []byte(`{"access_token":"stale-file-token"}`)))
+		before, err := os.ReadFile(file.credentialsPath())
+		require.NoError(t, err)
+
+		started, release := make(chan struct{}), make(chan struct{})
+		var startedOnce, releaseOnce sync.Once
+		var calls atomic.Int32
+		var providers sync.WaitGroup
+		block := func() {
+			providers.Add(1)
+			defer providers.Done()
+			calls.Add(1)
+			startedOnce.Do(func() { close(started) })
+			<-release
+		}
+		swapKeyringOperations(t,
+			func(string, string) (string, error) { block(); return "keyring-token", nil },
+			func(string, string, string) error { block(); return nil },
+			func(string, string) error { block(); return nil },
+		)
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(release) })
+			providers.Wait()
+		})
+
+		const queued = 64
+		const timeout = 40 * time.Millisecond
+		store := NewStore(StoreOptions{ServiceName: "test", FallbackDir: file.fallbackDir, OperationTimeout: timeout})
+		type result struct {
+			data []byte
+			err  error
+		}
+		results := make(chan result, queued+1)
+		go func() { results <- result{err: store.Save("work", []byte("new-token"))} }()
+		<-started
+		synctest.Wait()
+
+		for i := range queued {
+			go func() {
+				var r result
+				switch i % 3 {
+				case 0:
+					r.data, r.err = store.Load("work")
+				case 1:
+					r.err = store.Save("work", []byte("queued-token"))
+				case 2:
+					r.err = store.Delete("work")
+				}
+				results <- r
+			}()
+		}
+		// All queued callers are blocked behind the actual provider call
+		// before fake time advances to their deadlines.
+		synctest.Wait()
+		assert.Empty(t, results)
+		assert.EqualValues(t, 1, calls.Load())
+		time.Sleep(timeout)
+		synctest.Wait()
+		require.Len(t, results, queued+1, "every caller must return while the provider is still blocked")
+		for range queued + 1 {
+			r := <-results
+			assert.ErrorIs(t, r.err, context.DeadlineExceeded)
+			assert.Empty(t, r.data, "a queued read must not return stale fallback credentials")
+		}
+		assert.EqualValues(t, 1, calls.Load())
+		assert.True(t, store.UsingKeyring())
+		assert.Empty(t, store.FallbackWarning())
+
+		// A late successful write must not revive the store or permit any
+		// queued read/write/delete to reach the provider afterward.
+		releaseOnce.Do(func() { close(release) })
+		providers.Wait()
+		synctest.Wait()
+		data, err := store.Load("work")
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Empty(t, data)
+		assert.ErrorIs(t, store.Save("work", []byte("retry-token")), context.DeadlineExceeded)
+		assert.ErrorIs(t, store.Delete("work"), context.DeadlineExceeded)
+		assert.EqualValues(t, 1, calls.Load())
+		after, err := os.ReadFile(file.credentialsPath())
+		require.NoError(t, err)
+		assert.Equal(t, before, after, "the fallback file must remain untouched")
+	})
 }
